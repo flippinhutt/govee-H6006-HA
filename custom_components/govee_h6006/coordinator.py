@@ -6,7 +6,7 @@ import logging
 from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import GoveeAPI
 from .const import DOMAIN
@@ -54,8 +54,19 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
         self.async_set_updated_data(self._snapshot())
 
     async def _async_update_data(self) -> GoveeData:
-        # State is primarily updated via BLE push notifications (_async_push_data).
-        # This polling fallback returns the last-known state snapshot.
+        # Refresh the BLE device handle in case it has gone stale since init.
+        ble_device = bluetooth.async_ble_device_from_address(
+            self.hass, self.device_address, connectable=True
+        )
+        if ble_device is None:
+            raise UpdateFailed(f"BLE device {self.device_address} not found")
+        self._api.update_device(ble_device)
+
+        try:
+            await self._api.poll_state()
+        except Exception as err:
+            raise UpdateFailed(f"Error communicating with {self.device_address}: {err}") from err
+
         return self._snapshot()
 
     async def set_power(self, on: bool) -> None:

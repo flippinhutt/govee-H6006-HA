@@ -7,7 +7,6 @@ from homeassistant.components.bluetooth import (
     async_discovered_service_info,
 )
 from homeassistant.config_entries import ConfigFlow
-from homeassistant.data_entry_flow import FlowResultType
 
 from .const import DOMAIN, DISCOVERY_NAME
 
@@ -18,27 +17,6 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         self._discovery_info: BluetoothServiceInfoBleak | None = None
         self._discovered_devices: dict[str, BluetoothServiceInfoBleak] = {}
-
-    def async_show_form(self, *, step_id, data_schema=None, description_placeholders=None):
-        return {
-            "type": FlowResultType.FORM,
-            "step_id": step_id,
-            "data_schema": data_schema,
-            "description_placeholders": description_placeholders or {},
-        }
-
-    def async_create_entry(self, *, title, data):
-        return {
-            "type": FlowResultType.CREATE_ENTRY,
-            "title": title,
-            "data": data,
-        }
-
-    def async_abort(self, *, reason):
-        return {
-            "type": FlowResultType.ABORT,
-            "reason": reason,
-        }
 
     async def async_step_bluetooth(
         self, discovery_info: BluetoothServiceInfoBleak

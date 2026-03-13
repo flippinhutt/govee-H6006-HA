@@ -15,6 +15,16 @@ _BRIGHTNESS_CMD = 0x04
 _COLOR_CMD = 0x05
 
 
+def _build_query(cmd: int) -> bytes:
+    """Build a 20-byte state-query packet (head=0xAA) for the given command."""
+    frame = [_REQUEST_HEAD, cmd & 0xFF] + [0] * 17
+    checksum = 0
+    for b in frame:
+        checksum ^= b
+    frame.append(checksum & 0xFF)
+    return bytes(frame)
+
+
 class GoveeAPI:
     def __init__(self, ble_device: BLEDevice, update_callback) -> None:
         self._ble_device = ble_device
@@ -28,6 +38,10 @@ class GoveeAPI:
     @property
     def address(self) -> str:
         return self._ble_device.address
+
+    def update_device(self, ble_device: BLEDevice) -> None:
+        """Refresh the BLE device handle (call before connecting if handle may be stale)."""
+        self._ble_device = ble_device
 
     async def _ensure_connected(self) -> None:
         if self._client is not None and self._client.is_connected:
@@ -68,6 +82,14 @@ class GoveeAPI:
                 self.color_rgb = (frame[3], frame[4], frame[5])
                 self.color_temp = None  # clear stale color temp
         await self._update_callback()
+
+    async def poll_state(self) -> None:
+        """Request current power, brightness, and color state from the device."""
+        await self._ensure_connected()
+        for cmd in (_POWER_CMD, _BRIGHTNESS_CMD, _COLOR_CMD):
+            await self._client.write_gatt_char(
+                WRITE_CHARACTERISTIC_UUID, _build_query(cmd), False
+            )
 
     async def set_power(self, on: bool) -> None:
         await self._write(GoveePacket.power(on))
