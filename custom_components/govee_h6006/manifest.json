@@ -1,0 +1,14 @@
+{
+  "domain": "govee_h6006",
+  "name": "Govee H6006 BLE",
+  "bluetooth": [
+    { "local_name": "ihoment_*", "connectable": true }
+  ],
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": ["bluetooth"],
+  "documentation": "",
+  "iot_class": "local_polling",
+  "requirements": ["bleak-retry-connector>=3.0.0"],
+  "version": "1.0.0"
+}
