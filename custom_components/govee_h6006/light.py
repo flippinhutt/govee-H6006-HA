@@ -1,0 +1,79 @@
+from __future__ import annotations
+from typing import Any
+
+from homeassistant.components.light import ColorMode, LightEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+from .const import DOMAIN, MIN_KELVIN, MAX_KELVIN
+from .coordinator import GoveeCoordinator
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    coordinator: GoveeCoordinator = hass.data[DOMAIN][config_entry.entry_id]
+    async_add_entities([GoveeLight(coordinator, config_entry)])
+
+
+class GoveeLight(CoordinatorEntity[GoveeCoordinator], LightEntity):
+    _attr_supported_color_modes = {ColorMode.RGB, ColorMode.COLOR_TEMP}
+    _attr_min_color_temp_kelvin = MIN_KELVIN
+    _attr_max_color_temp_kelvin = MAX_KELVIN
+
+    def __init__(self, coordinator: GoveeCoordinator, config_entry: ConfigEntry) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = config_entry.unique_id
+        self._attr_name = coordinator.device_name
+
+    @property
+    def is_on(self) -> bool | None:
+        return self.coordinator.data.state
+
+    @property
+    def brightness(self) -> int | None:
+        return self.coordinator.data.brightness
+
+    @property
+    def rgb_color(self) -> tuple[int, int, int] | None:
+        return self.coordinator.data.color_rgb
+
+    @property
+    def color_temp_kelvin(self) -> int | None:
+        return self.coordinator.data.color_temp
+
+    @property
+    def color_mode(self) -> ColorMode:
+        if self.coordinator.data.color_temp is not None:
+            return ColorMode.COLOR_TEMP
+        return ColorMode.RGB
+
+    @property
+    def supported_color_modes(self) -> set[ColorMode]:
+        return self._attr_supported_color_modes
+
+    @property
+    def min_color_temp_kelvin(self) -> int:
+        return self._attr_min_color_temp_kelvin
+
+    @property
+    def max_color_temp_kelvin(self) -> int:
+        return self._attr_max_color_temp_kelvin
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        if not self.is_on:
+            await self.coordinator.set_power(True)
+        if "brightness" in kwargs:
+            await self.coordinator.set_brightness(kwargs["brightness"])
+        if "rgb_color" in kwargs:
+            r, g, b = kwargs["rgb_color"]
+            await self.coordinator.set_color_rgb(r, g, b)
+        if "color_temp_kelvin" in kwargs:
+            await self.coordinator.set_color_temp(kwargs["color_temp_kelvin"])
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self.coordinator.set_power(False)
