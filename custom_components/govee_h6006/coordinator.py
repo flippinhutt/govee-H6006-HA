@@ -6,7 +6,7 @@ import logging
 from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .api import GoveeAPI
 from .const import DOMAIN
@@ -54,6 +54,8 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
         self.async_set_updated_data(self._snapshot())
 
     async def _async_update_data(self) -> GoveeData:
+        # State is primarily updated via BLE push notifications (_async_push_data).
+        # This polling fallback returns the last-known state snapshot.
         return self._snapshot()
 
     async def set_power(self, on: bool) -> None:

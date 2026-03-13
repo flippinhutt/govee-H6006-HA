@@ -42,8 +42,7 @@ async def test_coordinator_polls_device_state(mock_hass, config_entry, mock_ble_
         assert data.color_rgb == (255, 0, 0)
 
 
-@pytest.mark.asyncio
-async def test_coordinator_raises_when_device_not_found(mock_hass, config_entry):
+def test_coordinator_raises_when_device_not_found(mock_hass, config_entry):
     with patch(
         "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
         return_value=None,
