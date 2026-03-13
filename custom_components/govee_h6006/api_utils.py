@@ -27,6 +27,9 @@ class GoveePacket:
 
     @staticmethod
     def color_rgb(r: int, g: int, b: int) -> bytes:
+        r = max(0, min(255, r))
+        g = max(0, min(255, g))
+        b = max(0, min(255, b))
         return _build_frame(0x05, [0x02, r, g, b])
 
     @staticmethod

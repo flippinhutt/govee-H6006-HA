@@ -26,8 +26,10 @@ def test_brightness_packet():
 
 
 def test_brightness_clamps_to_range():
-    assert GoveePacket.brightness(0)[2] == 0
-    assert GoveePacket.brightness(255)[2] == 255
+    assert GoveePacket.brightness(-1)[2] == 0    # clamps to 0
+    assert GoveePacket.brightness(256)[2] == 255  # clamps to 255
+    assert GoveePacket.brightness(0)[2] == 0      # boundary
+    assert GoveePacket.brightness(255)[2] == 255  # boundary
 
 
 def test_rgb_packet():
