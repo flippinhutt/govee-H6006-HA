@@ -1,5 +1,19 @@
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
+
+# Stub out bleak and bleak_retry_connector so api.py can be imported without
+# the packages installed. The fixtures below provide the actual mock objects
+# that tests interact with.
+_bleak_stub = MagicMock()
+_bleak_stub.BleakClient = MagicMock
+_bleak_stub.BLEDevice = MagicMock
+sys.modules.setdefault("bleak", _bleak_stub)
+sys.modules.setdefault("bleak.backends", MagicMock())
+sys.modules.setdefault("bleak.backends.characteristic", MagicMock())
+_bleak_retry_stub = MagicMock()
+_bleak_retry_stub.establish_connection = AsyncMock()
+sys.modules.setdefault("bleak_retry_connector", _bleak_retry_stub)
 
 @pytest.fixture
 def mock_bleak_client():
