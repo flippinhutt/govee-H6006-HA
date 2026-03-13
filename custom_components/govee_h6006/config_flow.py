@@ -51,7 +51,8 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_bluetooth_confirm(
         self, user_input: dict[str, Any] | None = None
     ) -> dict:
-        assert self._discovery_info is not None
+        if self._discovery_info is None:
+            return self.async_abort(reason="no_devices_found")
         if user_input is not None:
             return self.async_create_entry(
                 title=self._discovery_info.name,
@@ -71,9 +72,11 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             address = user_input["address"]
             self._discovery_info = self._discovered_devices[address]
+            # Show confirmation form before creating the entry
             return await self.async_step_bluetooth_confirm()
 
         current_addresses = self._async_current_ids()
+        # connectable=True — H6006 requires an active GATT connection, not passive advertising
         for info in async_discovered_service_info(self.hass, connectable=True):
             if info.address in current_addresses or info.address in self._discovered_devices:
                 continue
