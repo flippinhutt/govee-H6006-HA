@@ -16,15 +16,14 @@ _COLOR_CMD = 0x05
 
 
 class GoveeAPI:
-    state: bool | None = None
-    brightness: int | None = None
-    color_rgb: tuple[int, int, int] | None = None
-    color_temp: int | None = None
-
     def __init__(self, ble_device: BLEDevice, update_callback) -> None:
         self._ble_device = ble_device
         self._update_callback = update_callback
         self._client: BleakClient | None = None
+        self.state: bool | None = None
+        self.brightness: int | None = None
+        self.color_rgb: tuple[int, int, int] | None = None
+        self.color_temp: int | None = None
 
     @property
     def address(self) -> str:
@@ -61,11 +60,13 @@ class GoveeAPI:
         elif cmd == _BRIGHTNESS_CMD:
             self.brightness = frame[2]
         elif cmd == _COLOR_CMD:
-            if frame[6] == 0x01:
+            if frame[6] == 0x01:  # white mode
                 warm = frame[7]
                 self.color_temp = round(MAX_KELVIN - (warm / 255) * (MAX_KELVIN - MIN_KELVIN))
+                self.color_rgb = None  # clear stale RGB
             else:
                 self.color_rgb = (frame[3], frame[4], frame[5])
+                self.color_temp = None  # clear stale color temp
         await self._update_callback()
 
     async def set_power(self, on: bool) -> None:
