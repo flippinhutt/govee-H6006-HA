@@ -40,6 +40,9 @@ class _DataUpdateCoordinator:
     def async_set_updated_data(self, data):
         self.data = data
 
+    async def async_config_entry_first_refresh(self):
+        pass
+
 
 class _FlowResultType(str, enum.Enum):
     FORM = "form"
