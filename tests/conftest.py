@@ -1,6 +1,14 @@
 import sys
+import enum
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
+
+# Stub voluptuous so config_flow.py can be imported without the package
+_vol_stub = MagicMock()
+_vol_stub.Schema = lambda x: x
+_vol_stub.Required = lambda x: x
+_vol_stub.In = lambda x: x
+sys.modules.setdefault("voluptuous", _vol_stub)
 
 # Stub out bleak and bleak_retry_connector so api.py can be imported without
 # the packages installed. The fixtures below provide the actual mock objects
@@ -32,14 +40,36 @@ class _DataUpdateCoordinator:
     def async_set_updated_data(self, data):
         self.data = data
 
+
+class _FlowResultType(str, enum.Enum):
+    FORM = "form"
+    CREATE_ENTRY = "create_entry"
+    ABORT = "abort"
+
+
 _ha_core_stub = MagicMock()
 _ha_core_stub.HomeAssistant = MagicMock
 
 _ha_config_entries_stub = MagicMock()
 _ha_config_entries_stub.ConfigEntry = MagicMock
 
+class _ConfigFlow:
+    """Minimal ConfigFlow base that accepts domain= as a class keyword."""
+    def __init_subclass__(cls, domain=None, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls._domain = domain
+
+_ha_config_entries_stub.ConfigFlow = _ConfigFlow
+_ha_config_entries_stub.SOURCE_BLUETOOTH = "bluetooth"
+_ha_config_entries_stub.SOURCE_USER = "user"
+
+_ha_data_entry_flow_stub = MagicMock()
+_ha_data_entry_flow_stub.FlowResultType = _FlowResultType
+
 _ha_bluetooth_stub = MagicMock()
 _ha_bluetooth_stub.async_ble_device_from_address = MagicMock(return_value=None)
+_ha_bluetooth_stub.BluetoothServiceInfoBleak = MagicMock
+_ha_bluetooth_stub.async_discovered_service_info = MagicMock(return_value=[])
 
 _ha_update_coordinator_stub = MagicMock()
 _ha_update_coordinator_stub.DataUpdateCoordinator = _DataUpdateCoordinator
@@ -48,14 +78,75 @@ _ha_update_coordinator_stub.UpdateFailed = Exception
 _ha_passive_coordinator_stub = MagicMock()
 _ha_passive_coordinator_stub.PassiveBluetoothDataUpdateCoordinator = MagicMock
 
-sys.modules.setdefault("homeassistant", MagicMock())
-sys.modules.setdefault("homeassistant.core", _ha_core_stub)
-sys.modules.setdefault("homeassistant.config_entries", _ha_config_entries_stub)
-sys.modules.setdefault("homeassistant.components", MagicMock())
-sys.modules.setdefault("homeassistant.components.bluetooth", _ha_bluetooth_stub)
-sys.modules.setdefault("homeassistant.components.bluetooth.passive_update_coordinator", _ha_passive_coordinator_stub)
-sys.modules.setdefault("homeassistant.helpers", MagicMock())
-sys.modules.setdefault("homeassistant.helpers.update_coordinator", _ha_update_coordinator_stub)
+sys.modules["homeassistant"] = MagicMock()
+sys.modules["homeassistant.core"] = _ha_core_stub
+sys.modules["homeassistant.config_entries"] = _ha_config_entries_stub
+sys.modules["homeassistant.data_entry_flow"] = _ha_data_entry_flow_stub
+sys.modules["homeassistant.components"] = MagicMock()
+sys.modules["homeassistant.components.bluetooth"] = _ha_bluetooth_stub
+sys.modules["homeassistant.components.bluetooth.passive_update_coordinator"] = _ha_passive_coordinator_stub
+sys.modules["homeassistant.helpers"] = MagicMock()
+sys.modules["homeassistant.helpers.update_coordinator"] = _ha_update_coordinator_stub
+
+
+# ---------------------------------------------------------------------------
+# Minimal hass fixture with a stubbed config_entries flow manager
+# ---------------------------------------------------------------------------
+
+class _FlowManager:
+    """Minimal flow manager that directly invokes GoveeH6006ConfigFlow steps."""
+
+    def __init__(self):
+        self._flows: dict[str, object] = {}
+        self._next_id = 1
+
+    def _new_flow(self):
+        from custom_components.govee_h6006.config_flow import GoveeH6006ConfigFlow
+        flow = GoveeH6006ConfigFlow()
+        flow.hass = MagicMock()
+        flow._async_current_ids = lambda: set()
+        flow.async_set_unique_id = AsyncMock()
+        flow._abort_if_unique_id_configured = MagicMock()
+        flow_id = str(self._next_id)
+        self._next_id += 1
+        self._flows[flow_id] = flow
+        return flow_id, flow
+
+    async def async_init(self, domain, *, context, data=None):
+        flow_id, flow = self._new_flow()
+        source = context.get("source", "")
+        # Compare by string representation to handle MagicMock attributes
+        source_str = str(source)
+        if "bluetooth" in source_str.lower() or source == "bluetooth":
+            result = await flow.async_step_bluetooth(data)
+        elif "user" in source_str.lower() or source == "user":
+            result = await flow.async_step_user(data)
+        else:
+            raise ValueError(f"Unsupported source: {source}")
+        result["flow_id"] = flow_id
+        return result
+
+    async def async_configure(self, flow_id, user_input=None):
+        flow = self._flows[flow_id]
+        # After bluetooth init, we're always at bluetooth_confirm
+        result = await flow.async_step_bluetooth_confirm(user_input)
+        return result
+
+
+class _ConfigEntriesProxy:
+    def __init__(self):
+        self.flow = _FlowManager()
+
+
+class _HassStub:
+    def __init__(self):
+        self.config_entries = _ConfigEntriesProxy()
+
+
+@pytest.fixture
+def hass():
+    return _HassStub()
+
 
 @pytest.fixture
 def mock_bleak_client():
@@ -64,6 +155,7 @@ def mock_bleak_client():
         client.is_connected = True
         mock.return_value = client
         yield client
+
 
 @pytest.fixture
 def mock_ble_device():

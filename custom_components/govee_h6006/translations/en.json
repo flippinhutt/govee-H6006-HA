@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "bluetooth_confirm": {
+        "title": "Set up Govee H6006",
+        "description": "Add {name} to Home Assistant?"
+      },
+      "user": {
+        "title": "Set up Govee H6006",
+        "data": {
+          "address": "Device"
+        }
+      }
+    },
+    "abort": {
+      "no_devices_found": "No Govee H6006 devices found nearby.",
+      "already_configured": "Device is already configured."
+    }
+  }
+}
