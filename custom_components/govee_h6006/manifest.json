@@ -4,7 +4,7 @@
   "bluetooth": [
     { "local_name": "ihoment_*", "connectable": true }
   ],
-  "codeowners": [],
+  "codeowners": ["@flippinhutt"],
   "config_flow": true,
   "dependencies": ["bluetooth"],
   "documentation": "https://github.com/flippinhutt/govee",
