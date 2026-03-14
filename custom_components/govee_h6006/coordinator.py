@@ -42,6 +42,11 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
             update_interval=timedelta(seconds=15),
         )
 
+    @property
+    def available(self) -> bool:
+        """Return True if the device is available (connected or can reconnect)."""
+        return self._api.is_available
+
     def _snapshot(self) -> GoveeData:
         return GoveeData(
             state=self._api.state,
@@ -61,6 +66,12 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
         if ble_device is None:
             raise UpdateFailed(f"BLE device {self.device_address} not found")
         self._api.update_device(ble_device)
+
+        # Check if device is available before polling
+        if not self._api.is_available:
+            raise UpdateFailed(
+                f"Device {self.device_address} is unavailable after max reconnection attempts"
+            )
 
         try:
             await self._api.poll_state()
