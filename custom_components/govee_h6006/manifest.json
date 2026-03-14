@@ -4,10 +4,10 @@
   "bluetooth": [
     { "local_name": "ihoment_*", "connectable": true }
   ],
-  "codeowners": [],
+  "codeowners": ["@flippinhutt"],
   "config_flow": true,
   "dependencies": ["bluetooth"],
-  "documentation": "",
+  "documentation": "https://github.com/flippinhutt/govee",
   "iot_class": "local_push",
   "requirements": ["bleak-retry-connector>=3.0.0"],
   "version": "1.0.0"
