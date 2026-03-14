@@ -14,6 +14,7 @@ from .const import (
     MAX_RECONNECT_ATTEMPTS,
     RECONNECT_BACKOFF_BASE,
     RECONNECT_BACKOFF_MAX,
+    RECONNECT_COOLDOWN_SECONDS,
 )
 from .api_utils import GoveePacket
 
@@ -60,8 +61,26 @@ class GoveeAPI:
         # If currently connected, device is available
         if self._client is not None and self._client.is_connected:
             return True
-        # If max reconnection attempts not exceeded, device is still available
-        return self._reconnect_attempts < MAX_RECONNECT_ATTEMPTS
+
+        # If max reconnection attempts exceeded, check cooldown period
+        if self._reconnect_attempts >= MAX_RECONNECT_ATTEMPTS:
+            # If cooldown period has elapsed, reset counter and allow retry
+            if self._last_disconnect_time is not None:
+                cooldown_elapsed = time.time() - self._last_disconnect_time
+                if cooldown_elapsed >= RECONNECT_COOLDOWN_SECONDS:
+                    _LOGGER.info(
+                        "Cooldown period (%ds) elapsed for %s, resetting reconnection counter and retrying",
+                        RECONNECT_COOLDOWN_SECONDS,
+                        self.address
+                    )
+                    self._reconnect_attempts = 0
+                    self._last_disconnect_time = None
+                    return True
+            # Cooldown not elapsed, device still unavailable
+            return False
+
+        # Under max attempts, device is available
+        return True
 
     def update_device(self, ble_device: BLEDevice) -> None:
         """Refresh the BLE device handle (call before connecting if handle may be stale)."""

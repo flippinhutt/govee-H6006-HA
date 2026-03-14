@@ -1,11 +1,13 @@
 import pytest
 import asyncio
+import time
 from unittest.mock import AsyncMock, MagicMock, patch, call
 from custom_components.govee_h6006.api import GoveeAPI
 from custom_components.govee_h6006.const import (
     MAX_RECONNECT_ATTEMPTS,
     RECONNECT_BACKOFF_BASE,
     RECONNECT_BACKOFF_MAX,
+    RECONNECT_COOLDOWN_SECONDS,
 )
 
 
@@ -264,3 +266,26 @@ async def test_max_attempts_logs_warning(api, caplog):
                            if record.levelname == "WARNING"]
         assert any("Max reconnection attempts" in msg and "marking unavailable" in msg
                   for msg in warning_messages)
+
+
+@pytest.mark.asyncio
+async def test_cooldown_resets_reconnection_counter(mock_ble_device):
+    """Test that device becomes available again after cooldown period."""
+    api = GoveeAPI(mock_ble_device, AsyncMock())
+
+    # Simulate 5 failed reconnection attempts
+    api._reconnect_attempts = 5
+    api._last_disconnect_time = time.time() - 100  # 100 seconds ago
+
+    # Device should be unavailable (cooldown not elapsed - 100s < 300s)
+    assert api.is_available is False
+
+    # Fast-forward time past cooldown period (5 minutes = 300 seconds)
+    api._last_disconnect_time = time.time() - 301  # 301 seconds ago
+
+    # Device should now be available (cooldown elapsed)
+    assert api.is_available is True
+
+    # Counter should be reset
+    assert api._reconnect_attempts == 0
+    assert api._last_disconnect_time is None
