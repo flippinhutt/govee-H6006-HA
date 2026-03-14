@@ -9,7 +9,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import GoveeAPI
-from .const import DEFAULT_POLLING_INTERVAL, DOMAIN
+from .const import (
+    DEFAULT_CONNECTION_TIMEOUT,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_POLLING_INTERVAL,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,7 +38,15 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
         if ble_device is None:
             raise RuntimeError(f"BLE device {self.device_address} not found")
 
-        self._api = GoveeAPI(ble_device, self._async_push_data)
+        connection_timeout = config_entry.options.get("connection_timeout", DEFAULT_CONNECTION_TIMEOUT)
+        max_retries = config_entry.options.get("max_retries", DEFAULT_MAX_RETRIES)
+
+        self._api = GoveeAPI(
+            ble_device,
+            self._async_push_data,
+            timeout=connection_timeout,
+            max_attempts=max_retries,
+        )
 
         polling_interval = config_entry.options.get("polling_interval", DEFAULT_POLLING_INTERVAL)
 
