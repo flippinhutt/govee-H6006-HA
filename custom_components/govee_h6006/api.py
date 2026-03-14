@@ -34,6 +34,10 @@ class GoveeAPI:
         self.brightness: int | None = None
         self.color_rgb: tuple[int, int, int] | None = None
         self.color_temp: int | None = None
+        # Connection state tracking
+        self._reconnect_attempts: int = 0
+        self._last_disconnect_time: float | None = None
+        self._is_reconnecting: bool = False
 
     @property
     def address(self) -> str:
