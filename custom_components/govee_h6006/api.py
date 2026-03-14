@@ -26,9 +26,17 @@ def _build_query(cmd: int) -> bytes:
 
 
 class GoveeAPI:
-    def __init__(self, ble_device: BLEDevice, update_callback) -> None:
+    def __init__(
+        self,
+        ble_device: BLEDevice,
+        update_callback,
+        timeout: float = 15.0,
+        max_attempts: int = 5,
+    ) -> None:
         self._ble_device = ble_device
         self._update_callback = update_callback
+        self._timeout = timeout
+        self._max_attempts = max_attempts
         self._client: BleakClient | None = None
         self.state: bool | None = None
         self.brightness: int | None = None
@@ -47,7 +55,11 @@ class GoveeAPI:
         if self._client is not None and self._client.is_connected:
             return
         self._client = await establish_connection(
-            BleakClient, self._ble_device, self.address
+            BleakClient,
+            self._ble_device,
+            self.address,
+            max_attempts=self._max_attempts,
+            ble_device_callback_timeout=self._timeout,
         )
         await self._client.start_notify(READ_CHARACTERISTIC_UUID, self._handle_notification)
 
