@@ -71,38 +71,52 @@ class GoveeAPI:
         """
         Attempt to reconnect with exponential backoff.
 
-        Returns True if reconnection succeeded, False if max attempts exceeded.
+        Returns True if reconnection succeeded, False if max attempts exceeded or skipped.
         Logs all attempts at debug level.
         """
-        async with self._connection_lock:
-            if self._is_reconnecting:
-                _LOGGER.debug(
-                    "Reconnection already in progress for %s, skipping",
-                    self.address
-                )
-                return False
+        # Check if reconnection is already in progress
+        if self._is_reconnecting:
+            _LOGGER.debug(
+                "Reconnection already in progress for %s, skipping",
+                self.address
+            )
+            return False
 
-            self._is_reconnecting = True
+        # Mark reconnection in progress before acquiring lock
+        self._is_reconnecting = True
 
-            try:
+        try:
+            async with self._connection_lock:
+                # Check if already connected after acquiring lock
+                if self._client is not None and self._client.is_connected:
+                    _LOGGER.debug("Already connected to %s, no reconnection needed", self.address)
+                    # Reset attempts counter since we're connected
+                    self._reconnect_attempts = 0
+                    return False  # No reconnection performed
+
                 while self._reconnect_attempts < MAX_RECONNECT_ATTEMPTS:
-                    # Calculate exponential backoff: base * (2 ** attempt), capped at max
-                    backoff = min(
-                        RECONNECT_BACKOFF_BASE * (2 ** self._reconnect_attempts),
-                        RECONNECT_BACKOFF_MAX
-                    )
-
-                    _LOGGER.debug(
-                        "Reconnection attempt %d/%d for %s, waiting %.1fs",
-                        self._reconnect_attempts + 1,
-                        MAX_RECONNECT_ATTEMPTS,
-                        self.address,
-                        backoff
-                    )
-
-                    # Wait before attempting (except first attempt)
+                    # Calculate exponential backoff based on number of previous failures
+                    # After N failures, wait base * (2 ** (N-1)) seconds: 1s, 2s, 4s, 8s...
                     if self._reconnect_attempts > 0:
+                        backoff = min(
+                            RECONNECT_BACKOFF_BASE * (2 ** (self._reconnect_attempts - 1)),
+                            RECONNECT_BACKOFF_MAX
+                        )
+                        _LOGGER.debug(
+                            "Reconnection attempt %d/%d for %s, waiting %.1fs",
+                            self._reconnect_attempts + 1,
+                            MAX_RECONNECT_ATTEMPTS,
+                            self.address,
+                            backoff
+                        )
                         await asyncio.sleep(backoff)
+                    else:
+                        _LOGGER.debug(
+                            "Reconnection attempt %d/%d for %s",
+                            self._reconnect_attempts + 1,
+                            MAX_RECONNECT_ATTEMPTS,
+                            self.address
+                        )
 
                     try:
                         # Attempt to establish connection
@@ -142,8 +156,8 @@ class GoveeAPI:
                 )
                 return False
 
-            finally:
-                self._is_reconnecting = False
+        finally:
+            self._is_reconnecting = False
 
     async def _ensure_connected(self) -> None:
         if self._client is not None and self._client.is_connected:
