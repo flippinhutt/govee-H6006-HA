@@ -54,6 +54,15 @@ class GoveeAPI:
     def address(self) -> str:
         return self._ble_device.address
 
+    @property
+    def is_available(self) -> bool:
+        """Return True if device is available (connected or can reconnect)."""
+        # If currently connected, device is available
+        if self._client is not None and self._client.is_connected:
+            return True
+        # If max reconnection attempts not exceeded, device is still available
+        return self._reconnect_attempts < MAX_RECONNECT_ATTEMPTS
+
     def update_device(self, ble_device: BLEDevice) -> None:
         """Refresh the BLE device handle (call before connecting if handle may be stale)."""
         self._ble_device = ble_device
