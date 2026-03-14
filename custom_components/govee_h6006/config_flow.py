@@ -34,6 +34,18 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
         self._discovery_info: BluetoothServiceInfoBleak | None = None
         self._discovered_devices: dict[str, BluetoothServiceInfoBleak] = {}
 
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        """Return the options flow handler."""
+        return GoveeH6006OptionsFlowHandler(config_entry)
+
+    @staticmethod
+    @callback
+    def options_flow(config_entry):
+        """Return the options flow handler (alias for async_get_options_flow)."""
+        return GoveeH6006OptionsFlowHandler(config_entry)
+
     async def async_step_bluetooth(
         self, discovery_info: BluetoothServiceInfoBleak
     ) -> dict:
