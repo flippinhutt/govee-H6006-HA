@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 import logging
 from bleak import BleakClient, BLEDevice
 from bleak.backends.characteristic import BleakGATTCharacteristic
@@ -30,6 +31,7 @@ class GoveeAPI:
         self._ble_device = ble_device
         self._update_callback = update_callback
         self._client: BleakClient | None = None
+        self._connect_lock = asyncio.Lock()
         self.state: bool | None = None
         self.brightness: int | None = None
         self.color_rgb: tuple[int, int, int] | None = None
@@ -46,10 +48,13 @@ class GoveeAPI:
     async def _ensure_connected(self) -> None:
         if self._client is not None and self._client.is_connected:
             return
-        self._client = await establish_connection(
-            BleakClient, self._ble_device, self.address
-        )
-        await self._client.start_notify(READ_CHARACTERISTIC_UUID, self._handle_notification)
+        async with self._connect_lock:
+            if self._client is not None and self._client.is_connected:
+                return
+            self._client = await establish_connection(
+                BleakClient, self._ble_device, self.address, timeout=15.0
+            )
+            await self._client.start_notify(READ_CHARACTERISTIC_UUID, self._handle_notification)
 
     async def _write(self, packet: bytes) -> None:
         await self._ensure_connected()
