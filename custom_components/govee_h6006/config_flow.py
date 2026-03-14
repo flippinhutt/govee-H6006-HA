@@ -6,9 +6,25 @@ from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
     async_discovered_service_info,
 )
-from homeassistant.config_entries import ConfigFlow
+from homeassistant.config_entries import ConfigFlow, OptionsFlow
+from homeassistant.core import callback
 
-from .const import DOMAIN, DISCOVERY_NAME
+from .const import (
+    DOMAIN,
+    DISCOVERY_NAME,
+    DEFAULT_POLLING_INTERVAL,
+    MIN_POLLING_INTERVAL,
+    MAX_POLLING_INTERVAL,
+    DEFAULT_CONNECTION_TIMEOUT,
+    MIN_CONNECTION_TIMEOUT,
+    MAX_CONNECTION_TIMEOUT,
+    DEFAULT_SUPPRESSION_WINDOW,
+    MIN_SUPPRESSION_WINDOW,
+    MAX_SUPPRESSION_WINDOW,
+    DEFAULT_MAX_RETRIES,
+    MIN_MAX_RETRIES,
+    MAX_MAX_RETRIES,
+)
 
 
 class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -71,5 +87,60 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
                 {vol.Required("address"): vol.In(
                     {addr: info.name for addr, info in self._discovered_devices.items()}
                 )}
+            ),
+        )
+
+
+class GoveeH6006OptionsFlowHandler(OptionsFlow):
+    """Handle options flow for Govee H6006."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> dict:
+        """Manage the options."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        "polling_interval",
+                        default=self.config_entry.options.get(
+                            "polling_interval", DEFAULT_POLLING_INTERVAL
+                        ),
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(min=MIN_POLLING_INTERVAL, max=MAX_POLLING_INTERVAL),
+                    ),
+                    vol.Required(
+                        "connection_timeout",
+                        default=self.config_entry.options.get(
+                            "connection_timeout", DEFAULT_CONNECTION_TIMEOUT
+                        ),
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(min=MIN_CONNECTION_TIMEOUT, max=MAX_CONNECTION_TIMEOUT),
+                    ),
+                    vol.Required(
+                        "suppression_window",
+                        default=self.config_entry.options.get(
+                            "suppression_window", DEFAULT_SUPPRESSION_WINDOW
+                        ),
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(min=MIN_SUPPRESSION_WINDOW, max=MAX_SUPPRESSION_WINDOW),
+                    ),
+                    vol.Required(
+                        "max_retries",
+                        default=self.config_entry.options.get(
+                            "max_retries", DEFAULT_MAX_RETRIES
+                        ),
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(min=MIN_MAX_RETRIES, max=MAX_MAX_RETRIES),
+                    ),
+                }
             ),
         )
