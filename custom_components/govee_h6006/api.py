@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio
 import logging
+import time
 from bleak import BleakClient, BLEDevice
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak_retry_connector import establish_connection
@@ -32,6 +33,7 @@ class GoveeAPI:
         self._update_callback = update_callback
         self._client: BleakClient | None = None
         self._connect_lock = asyncio.Lock()
+        self._suppress_update_until = 0.0  # Suppress notifications after command for 500ms
         self.state: bool | None = None
         self.brightness: int | None = None
         self.color_rgb: tuple[int, int, int] | None = None
@@ -58,6 +60,9 @@ class GoveeAPI:
 
     async def _write(self, packet: bytes) -> None:
         await self._ensure_connected()
+        # Suppress state notifications for 500ms to prevent stale device state
+        # from overwriting optimistic updates
+        self._suppress_update_until = time.time() + 0.5
         await self._client.write_gatt_char(WRITE_CHARACTERISTIC_UUID, packet, False)
 
     async def _handle_notification(
@@ -73,37 +78,62 @@ class GoveeAPI:
             return
         if frame[0] != _REQUEST_HEAD:
             return
+
+        # Suppress notifications for 500ms after sending a command
+        # This prevents the device's old state from overwriting optimistic updates
+        if time.time() < self._suppress_update_until:
+            _LOGGER.debug("Suppressing notification (recent command in flight)")
+            return
+
         cmd = frame[1]
-        if cmd == _POWER_CMD:
-            self.state = frame[2] == 0x01
-        elif cmd == _BRIGHTNESS_CMD:
-            self.brightness = frame[2]
-        elif cmd == _COLOR_CMD:
-            if frame[6] == 0x01:  # white mode
-                warm = frame[7]
-                self.color_temp = round(MAX_KELVIN - (warm / 255) * (MAX_KELVIN - MIN_KELVIN))
-                self.color_rgb = None  # clear stale RGB
+        try:
+            if cmd == _POWER_CMD:
+                self.state = frame[2] == 0x01
+                _LOGGER.debug(f"Notification: power={self.state}")
+            elif cmd == _BRIGHTNESS_CMD:
+                self.brightness = frame[2]
+                _LOGGER.debug(f"Notification: brightness={self.brightness}")
+            elif cmd == _COLOR_CMD:
+                # Detect white mode by checking if R, G, B are all 0xFF
+                is_white_mode = frame[3] == 0xFF and frame[4] == 0xFF and frame[5] == 0xFF
+                if is_white_mode:
+                    warm = frame[7]
+                    self.color_temp = round(MAX_KELVIN - (warm / 255) * (MAX_KELVIN - MIN_KELVIN))
+                    self.color_rgb = None  # clear stale RGB
+                    _LOGGER.debug(f"Notification: color_temp={self.color_temp}K (white mode)")
+                else:
+                    self.color_rgb = (frame[3], frame[4], frame[5])
+                    self.color_temp = None  # clear stale color temp
+                    _LOGGER.debug(f"Notification: color_rgb={self.color_rgb}")
             else:
-                self.color_rgb = (frame[3], frame[4], frame[5])
-                self.color_temp = None  # clear stale color temp
+                _LOGGER.debug(f"Notification: unknown command {cmd:02x}")
+                return
+        except (IndexError, ValueError) as e:
+            _LOGGER.warning(f"Failed to parse notification: {e}")
+            return
         await self._update_callback()
 
     async def poll_state(self) -> None:
         """Request current power, brightness, and color state from the device."""
         await self._ensure_connected()
+        _LOGGER.debug("Polling device state")
         for cmd in (_POWER_CMD, _BRIGHTNESS_CMD, _COLOR_CMD):
             await self._client.write_gatt_char(
                 WRITE_CHARACTERISTIC_UUID, _build_query(cmd), False
             )
 
     async def set_power(self, on: bool) -> None:
+        _LOGGER.debug(f"Sending power command: on={on}")
         await self._write(GoveePacket.power(on))
 
     async def set_brightness(self, value: int) -> None:
+        _LOGGER.debug(f"Sending brightness command: value={value}")
         await self._write(GoveePacket.brightness(value))
 
     async def set_color_rgb(self, r: int, g: int, b: int) -> None:
+        _LOGGER.debug(f"Sending RGB command: r={r}, g={g}, b={b}")
         await self._write(GoveePacket.color_rgb(r, g, b))
 
     async def set_color_temp(self, kelvin: int) -> None:
+        _LOGGER.debug(f"Sending color temp command: kelvin={kelvin}")
         await self._write(GoveePacket.color_temp(kelvin))

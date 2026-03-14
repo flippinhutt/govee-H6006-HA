@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. ALWAYS update CLAUDE.md and CHANGELOG.md when changes are made. 
 
 ## Project
 
@@ -67,12 +67,13 @@ These settings help stabilize Bluetooth in interference-prone home networks. If 
 
 ## Instant UI Responsiveness
 
-Commands sent from Home Assistant now provide **instant UI feedback** via optimistic updates (coordinator.py lines 72–82). When you adjust brightness, color, or power state:
+Commands sent from Home Assistant provide **instant UI feedback** via optimistic updates (coordinator.py lines 72–82). When you adjust brightness, color, or power state:
 1. Local state updates immediately → UI reflects change instantly
 2. Command is sent to device asynchronously
-3. Device confirms via notification or polling (fallback after 30s)
+3. Notification updates are **suppressed for 500ms** to prevent stale state from overwriting optimistic updates (api.py line 45)
+4. Device processes command and sends confirmation via notification or polling (fallback after 30s)
 
-If the actual device state differs from the optimistic guess, the next poll or notification will correct it. This ensures responsive controls even over unreliable BLE links.
+This architecture prevents the device from echoing back old state before processing the command, which was causing the "restore to last settings" issue. All commands and notifications are logged at debug level for troubleshooting.
 
 ## Staying Current
 
