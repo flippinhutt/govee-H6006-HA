@@ -5,7 +5,10 @@ All notable changes to the Govee H6006 Home Assistant integration are documented
 ## [Unreleased]
 
 ### Fixed
-- **Optimistic updates for instant UI responsiveness** — Commands sent from Home Assistant (power, brightness, color) now update the local coordinator state immediately, eliminating the lag where users had to wait for the 30-second polling interval to see their changes reflected in the UI.
+- **Optimistic updates for instant UI responsiveness** — Commands sent from Home Assistant (power, brightness, color) now update the local coordinator state immediately
+- **State reversion bug** — Device no longer reverts to previous values after changing state. Fixed by suppressing notifications for 500ms after sending commands, preventing the device's echoed old state from overwriting optimistic updates
+- **Color mode detection** — Improved detection of white mode vs RGB mode by checking RGB values (0xFF) instead of relying on potentially unreliable frame bytes
+- **Debug logging** — Added comprehensive debug logging for all commands, notifications, and polling for troubleshooting connection issues
 
 ## [0.1.0] - 2026-03-13
 
