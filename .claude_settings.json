@@ -1,0 +1,39 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
+  },
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Read(./**)",
+      "Write(./**)",
+      "Edit(./**)",
+      "Glob(./**)",
+      "Grep(./**)",
+      "Read(/Users/ryanhutto/projects/govee/.auto-claude/worktrees/tasks/001-automatic-ble-reconnection-with-exponential-backof/**)",
+      "Write(/Users/ryanhutto/projects/govee/.auto-claude/worktrees/tasks/001-automatic-ble-reconnection-with-exponential-backof/**)",
+      "Edit(/Users/ryanhutto/projects/govee/.auto-claude/worktrees/tasks/001-automatic-ble-reconnection-with-exponential-backof/**)",
+      "Glob(/Users/ryanhutto/projects/govee/.auto-claude/worktrees/tasks/001-automatic-ble-reconnection-with-exponential-backof/**)",
+      "Grep(/Users/ryanhutto/projects/govee/.auto-claude/worktrees/tasks/001-automatic-ble-reconnection-with-exponential-backof/**)",
+      "Read(/Users/ryanhutto/projects/govee/.auto-claude/worktrees/tasks/001-automatic-ble-reconnection-with-exponential-backof/.auto-claude/specs/001-automatic-ble-reconnection-with-exponential-backof/**)",
+      "Write(/Users/ryanhutto/projects/govee/.auto-claude/worktrees/tasks/001-automatic-ble-reconnection-with-exponential-backof/.auto-claude/specs/001-automatic-ble-reconnection-with-exponential-backof/**)",
+      "Edit(/Users/ryanhutto/projects/govee/.auto-claude/worktrees/tasks/001-automatic-ble-reconnection-with-exponential-backof/.auto-claude/specs/001-automatic-ble-reconnection-with-exponential-backof/**)",
+      "Read(/Users/ryanhutto/projects/govee/.auto-claude/**)",
+      "Write(/Users/ryanhutto/projects/govee/.auto-claude/**)",
+      "Edit(/Users/ryanhutto/projects/govee/.auto-claude/**)",
+      "Glob(/Users/ryanhutto/projects/govee/.auto-claude/**)",
+      "Grep(/Users/ryanhutto/projects/govee/.auto-claude/**)",
+      "Bash(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "mcp__context7__resolve-library-id(*)",
+      "mcp__context7__query-docs(*)",
+      "mcp__graphiti-memory__search_nodes(*)",
+      "mcp__graphiti-memory__search_facts(*)",
+      "mcp__graphiti-memory__add_episode(*)",
+      "mcp__graphiti-memory__get_episodes(*)",
+      "mcp__graphiti-memory__get_entity_edge(*)"
+    ]
+  }
+}
