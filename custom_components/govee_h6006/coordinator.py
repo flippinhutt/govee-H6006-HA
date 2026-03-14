@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import GoveeAPI
-from .const import DOMAIN
+from .const import DEFAULT_POLLING_INTERVAL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,11 +35,13 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
 
         self._api = GoveeAPI(ble_device, self._async_push_data)
 
+        polling_interval = config_entry.options.get("polling_interval", DEFAULT_POLLING_INTERVAL)
+
         super().__init__(
             hass,
             _LOGGER,
             name=f"{DOMAIN} ({self.device_address})",
-            update_interval=timedelta(seconds=15),
+            update_interval=timedelta(seconds=polling_interval),
         )
 
     def _snapshot(self) -> GoveeData:
