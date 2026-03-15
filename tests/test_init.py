@@ -9,6 +9,7 @@ from custom_components.govee_h6006.const import DOMAIN
 async def test_setup_entry_stores_coordinator(hass):
     config_entry = MagicMock()
     config_entry.data = {"address": "AA:BB:CC:DD:EE:FF", "name": "ihoment_H6006"}
+    config_entry.options = {}
     config_entry.unique_id = "AA:BB:CC:DD:EE:FF"
     config_entry.entry_id = "test_entry"
 

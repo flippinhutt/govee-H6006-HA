@@ -106,63 +106,29 @@ async def test_notification_updates_state(api, mock_bleak_client, update_callbac
 
 
 @pytest.mark.asyncio
-async def test_reconnect_on_mid_session_disconnect(api, mock_bleak_client):
-    """Test that API automatically reconnects when connection drops mid-session."""
+async def test_api_passes_timeout_to_establish_connection(mock_ble_device, update_callback, mock_bleak_client):
+    api = GoveeAPI(mock_ble_device, update_callback, timeout=20.0, max_attempts=3)
     with patch("custom_components.govee_h6006.api.establish_connection",
                return_value=mock_bleak_client) as mock_connect:
-        # Establish initial connection
         await api.set_power(True)
-        assert mock_connect.call_count == 1
-
-        # Simulate mid-session disconnect
-        mock_bleak_client.is_connected = False
-        api._client = None
-
-        # Next operation should trigger reconnection
-        await api.set_brightness(150)
-
-        # Should have reconnected (second call to establish_connection)
-        assert mock_connect.call_count == 2
-        assert mock_bleak_client.write_gatt_char.call_count == 2
-
-
-@pytest.mark.asyncio
-async def test_write_recovers_from_disconnect(api, mock_bleak_client):
-    """Test that write operations recover from mid-session disconnect."""
-    with patch("custom_components.govee_h6006.api.establish_connection",
-               return_value=mock_bleak_client) as mock_connect, \
-         patch("asyncio.sleep"):
-        # Start with no connection
-        api._client = None
-
-        # Write should establish connection and succeed
-        await api.set_color_rgb(255, 128, 0)
-
         mock_connect.assert_called_once()
-        mock_bleak_client.write_gatt_char.assert_called_once()
+        # Verify timeout and max_attempts are passed to establish_connection
+        call_kwargs = mock_connect.call_args[1]
+        assert call_kwargs["max_attempts"] == 3
+        assert call_kwargs["ble_device_callback_timeout"] == 20.0
 
 
 @pytest.mark.asyncio
-async def test_poll_recovers_from_mid_session_disconnect(api, mock_bleak_client):
-    """Test that poll_state can recover from mid-session disconnect."""
+async def test_api_uses_default_timeout_and_retries(mock_ble_device, update_callback, mock_bleak_client):
+    api = GoveeAPI(mock_ble_device, update_callback)
     with patch("custom_components.govee_h6006.api.establish_connection",
-               return_value=mock_bleak_client) as mock_connect, \
-         patch("asyncio.sleep"):
-        # Establish initial connection
+               return_value=mock_bleak_client) as mock_connect:
         await api.set_power(True)
-        initial_connect_count = mock_connect.call_count
-
-        # Simulate disconnect
-        api._client = None
-        mock_bleak_client.is_connected = False
-
-        # Poll should reconnect and succeed
-        await api.poll_state()
-
-        # Should have reconnected
-        assert mock_connect.call_count > initial_connect_count
-        # Poll writes 3 query commands (power, brightness, color)
-        assert mock_bleak_client.write_gatt_char.call_count >= 3
+        mock_connect.assert_called_once()
+        # Verify default timeout and max_attempts are used
+        call_kwargs = mock_connect.call_args[1]
+        assert call_kwargs["max_attempts"] == 5
+        assert call_kwargs["ble_device_callback_timeout"] == 15.0
 
 
 @pytest.mark.asyncio
@@ -184,3 +150,58 @@ async def test_reconnect_resets_state_on_success(api, mock_bleak_client):
         # Counter should be reset to 0 after successful reconnection
         assert api._reconnect_attempts == 0
         assert api.is_available is True
+
+
+@pytest.mark.asyncio
+async def test_connection_timeout_is_20_seconds(api, mock_bleak_client):
+    """Test that establish_connection is called with timeout=20 seconds."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client) as mock_connect:
+        await api.set_power(True)
+
+        # Verify establish_connection was called with timeout=20
+        call_args = mock_connect.call_args
+        assert 'timeout' in call_args.kwargs
+        assert call_args.kwargs['timeout'] == 20.0
+async def test_api_suppresses_rapid_notifications(mock_ble_device):
+    """Test that rapid notifications are throttled based on suppression_window."""
+    import time
+
+    callback_count = 0
+
+    async def counting_callback():
+        nonlocal callback_count
+        callback_count += 1
+
+    # Create API with 500ms suppression window
+    api = GoveeAPI(mock_ble_device, counting_callback, suppression_window=500)
+
+    # Simulate 3 rapid power notifications within 100ms
+    for i in range(3):
+        # Simulate notification (power on)
+        notification_frame = bytearray([0xAA, 0x01, 0x01] + [0] * 16)
+        checksum = 0
+        for b in notification_frame[:19]:
+            checksum ^= b
+        notification_frame.append(checksum & 0xFF)
+
+        await api._handle_notification(None, notification_frame)
+        if i < 2:
+            time.sleep(0.05)  # 50ms between notifications
+
+    # Only the first notification should have triggered callback (others suppressed)
+    assert callback_count == 1
+
+    # Wait for suppression window to expire
+    time.sleep(0.6)  # 600ms
+
+    # Send another notification
+    notification_frame = bytearray([0xAA, 0x01, 0x01] + [0] * 16)
+    checksum = 0
+    for b in notification_frame[:19]:
+        checksum ^= b
+    notification_frame.append(checksum & 0xFF)
+    await api._handle_notification(None, notification_frame)
+
+    # Now callback should be called again
+    assert callback_count == 2

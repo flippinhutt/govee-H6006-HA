@@ -1,6 +1,7 @@
 # Govee H6006 BLE Integration for Home Assistant 🏠
 
 [![hacs](https://img.shields.io/badge/HACS-Integration-blue.svg?style=for-the-badge)](https://github.com/hacs/integration)
+[![CI](https://img.shields.io/github/actions/workflow/status/flippinhutt/govee/ci.yml?style=for-the-badge&label=CI)](https://github.com/flippinhutt/govee/actions/workflows/ci.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/flippinhutt/govee?sort=semver&style=for-the-badge&color=green)](https://github.com/flippinhutt/govee/releases/)
 [![GitHub Release Date](https://img.shields.io/github/release-date/flippinhutt/govee?style=for-the-badge&color=green)](https://github.com/flippinhutt/govee/releases/)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/flippinhutt/govee?style=for-the-badge)
