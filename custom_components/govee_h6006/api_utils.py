@@ -1,5 +1,6 @@
 from __future__ import annotations
-from .const import MIN_KELVIN, MAX_KELVIN
+
+from .const import MAX_KELVIN, MIN_KELVIN
 
 _PACKET_LEN = 20
 _CMD_HEAD = 0x33

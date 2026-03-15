@@ -1,22 +1,24 @@
 from __future__ import annotations
+
 import asyncio
 import logging
 import time
+
 from bleak import BleakClient, BLEDevice
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak_retry_connector import establish_connection
 
+from .api_utils import GoveePacket
 from .const import (
-    WRITE_CHARACTERISTIC_UUID,
-    READ_CHARACTERISTIC_UUID,
-    MIN_KELVIN,
     MAX_KELVIN,
     MAX_RECONNECT_ATTEMPTS,
+    MIN_KELVIN,
+    READ_CHARACTERISTIC_UUID,
     RECONNECT_BACKOFF_BASE,
     RECONNECT_BACKOFF_MAX,
     RECONNECT_COOLDOWN_SECONDS,
+    WRITE_CHARACTERISTIC_UUID,
 )
-from .api_utils import GoveePacket
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,7 +73,7 @@ class GoveeAPI:
                 cooldown_elapsed = time.time() - self._last_disconnect_time
                 if cooldown_elapsed >= RECONNECT_COOLDOWN_SECONDS:
                     _LOGGER.info(
-                        "Cooldown period (%ds) elapsed for %s, resetting reconnection counter and retrying",
+                        "Cooldown period (%ds) elapsed for %s, resetting attempts and retrying",
                         RECONNECT_COOLDOWN_SECONDS,
                         self.address
                     )

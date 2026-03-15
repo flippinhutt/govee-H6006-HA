@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from typing import Any
 
 import voluptuous as vol
@@ -8,7 +9,7 @@ from homeassistant.components.bluetooth import (
 )
 from homeassistant.config_entries import ConfigFlow
 
-from .const import DOMAIN, DISCOVERY_NAME
+from .const import DISCOVERY_NAME, DOMAIN
 
 
 class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
