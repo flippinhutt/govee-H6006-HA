@@ -172,3 +172,165 @@ async def test_api_suppresses_rapid_notifications(mock_ble_device):
 
     # Now callback should be called again
     assert callback_count == 2
+
+
+# ========================================
+# BLE Write Failures and Disconnection
+# ========================================
+
+@pytest.mark.asyncio
+async def test_write_gatt_char_failure_propagates(api, mock_bleak_client):
+    """Test that write_gatt_char failures propagate as exceptions."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        # Make write_gatt_char fail
+        mock_bleak_client.write_gatt_char.side_effect = Exception("BLE write failed")
+
+        with pytest.raises(Exception) as exc_info:
+            await api.set_power(True)
+
+        assert "BLE write failed" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_disconnection_during_write(api, mock_bleak_client):
+    """Test that disconnection during write is detected and handled."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        # First write succeeds
+        await api.set_power(True)
+
+        # Simulate disconnection
+        mock_bleak_client.is_connected = False
+
+        # Second write should reconnect
+        mock_bleak_client.is_connected = True  # Reconnect succeeds
+        await api.set_power(False)
+
+        # write_gatt_char should be called twice (one for each command)
+        assert mock_bleak_client.write_gatt_char.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_ensure_connected_failure_on_write(api, mock_bleak_client):
+    """Test that connection failures during write are propagated."""
+    with patch("custom_components.govee_h6006.api.establish_connection") as mock_connect:
+        # Make establish_connection fail
+        mock_connect.side_effect = Exception("Connection failed")
+
+        with pytest.raises(Exception) as exc_info:
+            await api.set_power(True)
+
+        assert "Connection failed" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_poll_state_write_failure(api, mock_bleak_client):
+    """Test that poll_state handles write failures correctly."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        # Make write_gatt_char fail on second call (brightness poll)
+        mock_bleak_client.write_gatt_char.side_effect = [
+            None,  # Power poll succeeds
+            Exception("BLE write failed"),  # Brightness poll fails
+        ]
+
+        with pytest.raises(Exception) as exc_info:
+            await api.poll_state()
+
+        assert "BLE write failed" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_write_after_disconnection_reconnects(api, mock_bleak_client):
+    """Test that write after disconnection triggers reconnection."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client) as mock_connect:
+        # First write establishes connection
+        await api.set_power(True)
+        assert mock_connect.call_count == 1
+
+        # Simulate disconnection by clearing client
+        api._client = None
+
+        # Second write should reconnect
+        await api.set_power(False)
+        assert mock_connect.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_multiple_write_failures(api, mock_bleak_client):
+    """Test that multiple consecutive write failures are handled."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        mock_bleak_client.write_gatt_char.side_effect = Exception("BLE write failed")
+
+        # First write fails
+        with pytest.raises(Exception):
+            await api.set_power(True)
+
+        # Second write also fails
+        with pytest.raises(Exception):
+            await api.set_brightness(100)
+
+        # Third write also fails
+        with pytest.raises(Exception):
+            await api.set_color_rgb(255, 0, 0)
+
+
+@pytest.mark.asyncio
+async def test_connection_established_but_disconnects_before_write(api, mock_bleak_client):
+    """Test handling when connection succeeds but disconnects before write."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        # Connection succeeds initially
+        mock_bleak_client.is_connected = True
+        await api._ensure_connected()
+
+        # Simulate disconnection before write
+        mock_bleak_client.is_connected = False
+
+        # Write should detect disconnection and reconnect
+        mock_bleak_client.is_connected = True  # Reconnection succeeds
+        await api.set_power(True)
+
+        mock_bleak_client.write_gatt_char.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_set_brightness_write_failure(api, mock_bleak_client):
+    """Test that set_brightness handles write failures."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        mock_bleak_client.write_gatt_char.side_effect = Exception("Write failed")
+
+        with pytest.raises(Exception) as exc_info:
+            await api.set_brightness(200)
+
+        assert "Write failed" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_set_color_rgb_write_failure(api, mock_bleak_client):
+    """Test that set_color_rgb handles write failures."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        mock_bleak_client.write_gatt_char.side_effect = Exception("Write failed")
+
+        with pytest.raises(Exception) as exc_info:
+            await api.set_color_rgb(255, 100, 50)
+
+        assert "Write failed" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_set_color_temp_write_failure(api, mock_bleak_client):
+    """Test that set_color_temp handles write failures."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        mock_bleak_client.write_gatt_char.side_effect = Exception("Write failed")
+
+        with pytest.raises(Exception) as exc_info:
+            await api.set_color_temp(3500)
+
+        assert "Write failed" in str(exc_info.value)
