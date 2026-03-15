@@ -133,8 +133,20 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
             raise HomeAssistantError(f"Failed to set color RGB: {err}") from err
 
     async def set_color_temp(self, kelvin: int) -> None:
+        # Save previous state for rollback on failure
+        prev_color_rgb = self._api.color_rgb
+        prev_color_temp = self._api.color_temp
+
         # Optimistic update for instant UI response
         self._api.color_temp = kelvin
         self._api.color_rgb = None  # clear RGB when color temp is set
         self.async_set_updated_data(self._snapshot())
-        await self._api.set_color_temp(kelvin)
+
+        try:
+            await self._api.set_color_temp(kelvin)
+        except Exception as err:
+            # Rollback to previous state on failure
+            self._api.color_rgb = prev_color_rgb
+            self._api.color_temp = prev_color_temp
+            self.async_set_updated_data(self._snapshot())
+            raise HomeAssistantError(f"Failed to set color temperature: {err}") from err
