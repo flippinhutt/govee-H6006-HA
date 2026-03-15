@@ -57,6 +57,7 @@ class GoveeAPI:
         self.rssi: int | None = None
         self._connection_attempts: deque[bool] = deque(maxlen=10)  # Track last 10 attempts (True=success, False=failure)
         self.last_poll_time: float | None = None  # Timestamp of last successful poll
+        self.total_reconnections: int = 0  # Total number of successful reconnections
 
     @property
     def address(self) -> str:
@@ -187,6 +188,7 @@ class GoveeAPI:
                         )
                         self._reconnect_attempts = 0
                         self._last_disconnect_time = None
+                        self.total_reconnections += 1
                         return True
 
                     except Exception as err:
