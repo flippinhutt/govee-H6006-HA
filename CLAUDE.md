@@ -59,9 +59,9 @@ Color temp range: 2700K–6500K. Warm/cold bytes are complementary (sum to 255).
 ## Bluetooth Resilience
 
 To handle noisy RF environments (e.g., 2.4GHz interference from WiFi, cordless phones, microwaves):
-- **Connection timeout:** 20 seconds (api.py line 55) — allows retry mechanism more time to establish connection
+- **Connection timeout:** 20 seconds (api.py line 196) — allows retry mechanism more time to establish connection
 - **Polling interval:** 30 seconds (coordinator.py line 42) — reduces polling frequency to be less aggressive in noisy environments
-- **Connection lock:** asyncio.Lock prevents concurrent connection attempts, avoiding "Operation already in progress" BlueZ errors (api.py line 51)
+- **Connection lock:** asyncio.Lock prevents concurrent connection attempts, avoiding "Operation already in progress" BlueZ errors (api.py line 54)
 
 These settings help stabilize Bluetooth in interference-prone home networks. If further issues persist, consider placing the BLE adapter away from USB 3 sources.
 
@@ -81,7 +81,7 @@ Before working on a task, check that this documentation matches the current code
 - Verify test commands still work: `pytest -x -q`
 - Check that module paths haven't changed
 - Confirm the coordinator still uses 30s polling (see coordinator.py line 42)
-- Verify connection timeout is 20s in api.py (line 55)
+- Verify connection timeout is 20s in api.py (line 196)
 - Review recent commits to catch breaking changes not yet documented here
 
 If you notice discrepancies, update this CLAUDE.md to reflect the current state.
