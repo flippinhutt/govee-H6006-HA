@@ -63,7 +63,6 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
             _LOGGER,
             name=f"{DOMAIN} ({self.device_address})",
             update_interval=timedelta(seconds=polling_interval),
-            update_interval=timedelta(seconds=30),
         )
 
     @property
