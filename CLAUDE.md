@@ -24,7 +24,11 @@ pytest -x
 pytest -k "test_brightness"
 ```
 
-No build step. No linting configured. No requirements.txt — dependencies are declared in `manifest.json` (`bleak-retry-connector>=3.0.0`). Tests stub out `bleak`, `bleak_retry_connector`, and all `homeassistant` modules via `tests/conftest.py` so no HA installation is needed to run tests.
+No build step. No linting configured. No requirements.txt — dependencies are declared in `manifest.json` (`bleak-retry-connector>=3.0.0`). Tests stub out `bleak`, `bleak_retry_connector`, and all `homeassistant` modules via `tests/conftest.py` so no HA installation is needed to run tests. Use python3.
+
+```bash
+python3
+```
 
 ## Architecture
 
