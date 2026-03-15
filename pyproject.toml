@@ -48,3 +48,32 @@ combine-as-imports = true
     "F401",  # Imported but unused (stubs are imported to patch modules)
     "F811",  # Redefinition of unused name (pytest fixtures)
 ]
+
+[tool.mypy]
+# Set Python version to match Home Assistant minimum
+python_version = "3.11"
+
+# Enable strict type checking for core modules
+strict = true
+
+# Ignore missing imports for dependencies without type stubs
+ignore_missing_imports = true
+
+# Per-module configuration - apply strict mode to core modules
+[[tool.mypy.overrides]]
+module = [
+    "custom_components.govee_h6006.api",
+    "custom_components.govee_h6006.api_utils",
+    "custom_components.govee_h6006.coordinator",
+]
+strict = true
+
+# Ignore stubbed test dependencies
+[[tool.mypy.overrides]]
+module = [
+    "homeassistant.*",
+    "bleak.*",
+    "bleak_retry_connector.*",
+    "pytest.*",
+]
+ignore_missing_imports = true
