@@ -32,6 +32,13 @@ async def test_coordinator_polls_device_state(mock_hass, config_entry, mock_ble_
         api_instance.brightness = 200
         api_instance.color_rgb = (255, 0, 0)
         api_instance.color_temp = None
+        # Mock diagnostic fields
+        api_instance.rssi = -65
+        api_instance.connection_success_rate = 90.0
+        api_instance.last_poll_time = 1234567890.0
+        api_instance.connection_state = "connected"
+        api_instance.total_reconnections = 2
+        api_instance.update_device = MagicMock()  # Not async
         MockAPI.return_value = api_instance
 
         coordinator = GoveeCoordinator(mock_hass, config_entry)
@@ -40,6 +47,12 @@ async def test_coordinator_polls_device_state(mock_hass, config_entry, mock_ble_
         assert data.state is True
         assert data.brightness == 200
         assert data.color_rgb == (255, 0, 0)
+        # Verify diagnostic fields are propagated
+        assert data.rssi == -65
+        assert data.connection_success_rate == 90.0
+        assert data.last_poll_time is not None
+        assert data.connection_state == "connected"
+        assert data.total_reconnections == 2
 
 
 def test_coordinator_raises_when_device_not_found(mock_hass, config_entry):
@@ -58,6 +71,12 @@ async def test_coordinator_set_power_delegates_to_api(mock_hass, config_entry, m
         return_value=mock_ble_device,
     ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI:
         api_instance = AsyncMock()
+        # Mock diagnostic fields so _snapshot() works
+        api_instance.rssi = None
+        api_instance.connection_success_rate = None
+        api_instance.last_poll_time = None
+        api_instance.connection_state = "disconnected"
+        api_instance.total_reconnections = 0
         MockAPI.return_value = api_instance
 
         coordinator = GoveeCoordinator(mock_hass, config_entry)
