@@ -186,7 +186,11 @@ class GoveeAPI:
                     try:
                         # Attempt to establish connection
                         self._client = await establish_connection(
-                            BleakClient, self._ble_device, self.address
+                            BleakClient,
+                            self._ble_device,
+                            self.address,
+                            max_attempts=self._max_attempts,
+                            ble_device_callback_timeout=self._timeout,
                         )
                         await self._client.start_notify(
                             READ_CHARACTERISTIC_UUID, self._handle_notification
@@ -242,7 +246,11 @@ class GoveeAPI:
             if self._client is not None and self._client.is_connected:
                 return
             self._client = await establish_connection(
-                BleakClient, self._ble_device, self.address, timeout=20.0
+                BleakClient,
+                self._ble_device,
+                self.address,
+                max_attempts=self._max_attempts,
+                ble_device_callback_timeout=self._timeout,
             )
             await self._client.start_notify(READ_CHARACTERISTIC_UUID, self._handle_notification)
             # Capture RSSI on successful connection
