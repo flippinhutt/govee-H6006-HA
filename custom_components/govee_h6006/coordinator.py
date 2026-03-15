@@ -6,6 +6,7 @@ import logging
 from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import GoveeAPI
@@ -41,6 +42,9 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
             name=f"{DOMAIN} ({self.device_address})",
             update_interval=timedelta(seconds=30),
         )
+
+        # Initialize data with current API state
+        self.data = self._snapshot()
 
     @property
     def available(self) -> bool:
@@ -81,27 +85,71 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
         return self._snapshot()
 
     async def set_power(self, on: bool) -> None:
+        # Save previous state for rollback on failure
+        prev_state = self._api.state
+
         # Optimistic update for instant UI response
         self._api.state = on
         self.async_set_updated_data(self._snapshot())
-        await self._api.set_power(on)
+
+        try:
+            await self._api.set_power(on)
+        except Exception as err:
+            # Rollback to previous state on failure
+            self._api.state = prev_state
+            self.async_set_updated_data(self._snapshot())
+            raise HomeAssistantError(f"Failed to set power state: {err}") from err
 
     async def set_brightness(self, value: int) -> None:
+        # Save previous state for rollback on failure
+        prev_brightness = self._api.brightness
+
         # Optimistic update for instant UI response
         self._api.brightness = value
         self.async_set_updated_data(self._snapshot())
-        await self._api.set_brightness(value)
+
+        try:
+            await self._api.set_brightness(value)
+        except Exception as err:
+            # Rollback to previous state on failure
+            self._api.brightness = prev_brightness
+            self.async_set_updated_data(self._snapshot())
+            raise HomeAssistantError(f"Failed to set brightness: {err}") from err
 
     async def set_color_rgb(self, r: int, g: int, b: int) -> None:
+        # Save previous state for rollback on failure
+        prev_color_rgb = self._api.color_rgb
+        prev_color_temp = self._api.color_temp
+
         # Optimistic update for instant UI response
         self._api.color_rgb = (r, g, b)
         self._api.color_temp = None  # clear color temp when RGB is set
         self.async_set_updated_data(self._snapshot())
-        await self._api.set_color_rgb(r, g, b)
+
+        try:
+            await self._api.set_color_rgb(r, g, b)
+        except Exception as err:
+            # Rollback to previous state on failure
+            self._api.color_rgb = prev_color_rgb
+            self._api.color_temp = prev_color_temp
+            self.async_set_updated_data(self._snapshot())
+            raise HomeAssistantError(f"Failed to set color RGB: {err}") from err
 
     async def set_color_temp(self, kelvin: int) -> None:
+        # Save previous state for rollback on failure
+        prev_color_rgb = self._api.color_rgb
+        prev_color_temp = self._api.color_temp
+
         # Optimistic update for instant UI response
         self._api.color_temp = kelvin
         self._api.color_rgb = None  # clear RGB when color temp is set
         self.async_set_updated_data(self._snapshot())
-        await self._api.set_color_temp(kelvin)
+
+        try:
+            await self._api.set_color_temp(kelvin)
+        except Exception as err:
+            # Rollback to previous state on failure
+            self._api.color_rgb = prev_color_rgb
+            self._api.color_temp = prev_color_temp
+            self.async_set_updated_data(self._snapshot())
+            raise HomeAssistantError(f"Failed to set color temperature: {err}") from err

@@ -189,13 +189,6 @@ class GoveeAPI:
             raise ConnectionError(
                 f"Failed to connect to {self.address} after {MAX_RECONNECT_ATTEMPTS} attempts"
             )
-        async with self._connect_lock:
-            if self._client is not None and self._client.is_connected:
-                return
-            self._client = await establish_connection(
-                BleakClient, self._ble_device, self.address, timeout=15.0
-            )
-            await self._client.start_notify(READ_CHARACTERISTIC_UUID, self._handle_notification)
 
     async def _write(self, packet: bytes) -> None:
         await self._ensure_connected()
