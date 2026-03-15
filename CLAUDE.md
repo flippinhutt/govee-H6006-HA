@@ -160,4 +160,4 @@ Built a custom HACS integration (govee_h6006) for the Govee H6006 bulb using loc
 
   Test Coverage
 
-  36 tests across all modules, all passing.
+  105 tests across all modules, all passing. Coverage: 92.74% (exceeds 90% target).

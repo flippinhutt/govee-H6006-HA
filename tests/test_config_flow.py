@@ -209,3 +209,86 @@ async def test_options_flow_rejects_invalid_values():
         assert False, "Expected validation error for out-of-range connection_timeout"
     except Exception:
         pass  # Expected to raise validation error
+
+
+@pytest.mark.asyncio
+async def test_bluetooth_discovery_sets_unique_id(hass):
+    """Test that bluetooth discovery sets unique ID based on device address."""
+    from unittest.mock import AsyncMock
+    from custom_components.govee_h6006.config_flow import GoveeH6006ConfigFlow
+
+    service_info = make_service_info(address="AA:BB:CC:DD:EE:FF")
+
+    flow = GoveeH6006ConfigFlow()
+    flow.hass = hass
+    flow._async_current_ids = lambda: set()
+    flow.async_set_unique_id = AsyncMock()
+    flow._abort_if_unique_id_configured = MagicMock()
+
+    await flow.async_step_bluetooth(service_info)
+
+    # Verify unique ID was set to the device address
+    flow.async_set_unique_id.assert_called_once_with("AA:BB:CC:DD:EE:FF")
+    # Verify abort check was called
+    flow._abort_if_unique_id_configured.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_user_flow_filters_configured_addresses(hass):
+    """Test that user flow calls _async_current_ids to filter configured devices."""
+    from custom_components.govee_h6006.config_flow import GoveeH6006ConfigFlow
+
+    service_info1 = make_service_info(name="ihoment_H6006_1", address="AA:BB:CC:DD:EE:01")
+    service_info2 = make_service_info(name="ihoment_H6006_2", address="AA:BB:CC:DD:EE:02")
+
+    flow = GoveeH6006ConfigFlow()
+    flow.hass = hass
+    # Mock _async_current_ids to return the first device as already configured
+    flow._async_current_ids = lambda: {"AA:BB:CC:DD:EE:01"}
+
+    with patch(
+        "custom_components.govee_h6006.config_flow.async_discovered_service_info",
+        return_value=[service_info1, service_info2],
+    ):
+        result = await flow.async_step_user(None)
+
+    # Should show user form
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "user"
+    # The discovered_devices should only contain the second device
+    assert "AA:BB:CC:DD:EE:02" in flow._discovered_devices
+    assert "AA:BB:CC:DD:EE:01" not in flow._discovered_devices
+
+
+@pytest.mark.asyncio
+async def test_user_flow_filters_non_govee_devices(hass):
+    """Test that user flow ignores devices that don't match the discovery name."""
+    service_info_govee = make_service_info(name="ihoment_H6006", address="AA:BB:CC:DD:EE:01")
+    service_info_other = make_service_info(name="other_device", address="AA:BB:CC:DD:EE:02")
+
+    with patch(
+        "custom_components.govee_h6006.config_flow.async_discovered_service_info",
+        return_value=[service_info_govee, service_info_other],
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+
+    # Should show user form with only the Govee device
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "user"
+
+
+@pytest.mark.asyncio
+async def test_bluetooth_confirm_aborts_when_no_discovery_info(hass):
+    """Test that bluetooth_confirm aborts when discovery info is missing."""
+    from custom_components.govee_h6006.config_flow import GoveeH6006ConfigFlow
+
+    flow = GoveeH6006ConfigFlow()
+    flow.hass = hass
+    # Don't set _discovery_info, leaving it None
+
+    result = await flow.async_step_bluetooth_confirm()
+
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "no_devices_found"

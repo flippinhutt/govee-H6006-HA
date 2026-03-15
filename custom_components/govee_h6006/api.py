@@ -277,28 +277,27 @@ class GoveeAPI:
             return
 
         cmd = frame[1]
-        try:
-            if cmd == _POWER_CMD:
-                self.state = frame[2] == 0x01
-                _LOGGER.debug(f"Notification: power={self.state}")
-            elif cmd == _BRIGHTNESS_CMD:
-                self.brightness = frame[2]
-                _LOGGER.debug(f"Notification: brightness={self.brightness}")
-            elif cmd == _COLOR_CMD:
-                # Detect white mode by checking if R, G, B are all 0xFF
-                is_white_mode = frame[3] == 0xFF and frame[4] == 0xFF and frame[5] == 0xFF
-                if is_white_mode:
-                    warm = frame[7]
-                    self.color_temp = round(MAX_KELVIN - (warm / 255) * (MAX_KELVIN - MIN_KELVIN))
-                    self.color_rgb = None  # clear stale RGB
-                    _LOGGER.debug(f"Notification: color_temp={self.color_temp}K (white mode)")
-                else:
-                    self.color_rgb = (frame[3], frame[4], frame[5])
-                    self.color_temp = None  # clear stale color temp
-                    _LOGGER.debug(f"Notification: color_rgb={self.color_rgb}")
+        if cmd == _POWER_CMD:
+            self.state = frame[2] == 0x01
+            _LOGGER.debug(f"Notification: power={self.state}")
+        elif cmd == _BRIGHTNESS_CMD:
+            self.brightness = frame[2]
+            _LOGGER.debug(f"Notification: brightness={self.brightness}")
+        elif cmd == _COLOR_CMD:
+            # Detect white mode by checking if R, G, B are all 0xFF
+            is_white_mode = frame[3] == 0xFF and frame[4] == 0xFF and frame[5] == 0xFF
+            if is_white_mode:
+                warm = frame[7]
+                self.color_temp = round(MAX_KELVIN - (warm / 255) * (MAX_KELVIN - MIN_KELVIN))
+                self.color_rgb = None  # clear stale RGB
+                _LOGGER.debug(f"Notification: color_temp={self.color_temp}K (white mode)")
             else:
                 self.color_rgb = (frame[3], frame[4], frame[5])
                 self.color_temp = None  # clear stale color temp
+                _LOGGER.debug(f"Notification: color_rgb={self.color_rgb}")
+        else:
+            self.color_rgb = (frame[3], frame[4], frame[5])
+            self.color_temp = None  # clear stale color temp
 
             # Throttle callbacks based on suppression window
             current_time = time.time() * 1000  # convert to milliseconds
