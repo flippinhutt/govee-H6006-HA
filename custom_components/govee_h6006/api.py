@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from typing import Awaitable, Callable
 
 from bleak import BleakClient, BLEDevice
 from bleak.backends.characteristic import BleakGATTCharacteristic
@@ -39,7 +40,7 @@ def _build_query(cmd: int) -> bytes:
 
 
 class GoveeAPI:
-    def __init__(self, ble_device: BLEDevice, update_callback) -> None:
+    def __init__(self, ble_device: BLEDevice, update_callback: Callable[[], Awaitable[None]]) -> None:
         self._ble_device = ble_device
         self._update_callback = update_callback
         self._client: BleakClient | None = None
@@ -201,6 +202,7 @@ class GoveeAPI:
 
     async def _write(self, packet: bytes) -> None:
         await self._ensure_connected()
+        assert self._client is not None  # _ensure_connected raises if connection fails
         # Suppress state notifications for 500ms to prevent stale device state
         # from overwriting optimistic updates
         self._suppress_update_until = time.time() + 0.5
@@ -257,6 +259,7 @@ class GoveeAPI:
     async def poll_state(self) -> None:
         """Request current power, brightness, and color state from the device."""
         await self._ensure_connected()
+        assert self._client is not None  # _ensure_connected raises if connection fails
         _LOGGER.debug("Polling device state")
         for cmd in (_POWER_CMD, _BRIGHTNESS_CMD, _COLOR_CMD):
             await self._client.write_gatt_char(
