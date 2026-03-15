@@ -58,7 +58,13 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
             _LOGGER,
             name=f"{DOMAIN} ({self.device_address})",
             update_interval=timedelta(seconds=polling_interval),
+            update_interval=timedelta(seconds=30),
         )
+
+    @property
+    def available(self) -> bool:
+        """Return True if the device is available (connected or can reconnect)."""
+        return self._api.is_available
 
     def _snapshot(self) -> GoveeData:
         return GoveeData(
@@ -80,6 +86,12 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
             raise UpdateFailed(f"BLE device {self.device_address} not found")
         self._api.update_device(ble_device)
 
+        # Check if device is available before polling
+        if not self._api.is_available:
+            raise UpdateFailed(
+                f"Device {self.device_address} is unavailable after max reconnection attempts"
+            )
+
         try:
             await self._api.poll_state()
         except Exception as err:
@@ -88,13 +100,27 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
         return self._snapshot()
 
     async def set_power(self, on: bool) -> None:
+        # Optimistic update for instant UI response
+        self._api.state = on
+        self.async_set_updated_data(self._snapshot())
         await self._api.set_power(on)
 
     async def set_brightness(self, value: int) -> None:
+        # Optimistic update for instant UI response
+        self._api.brightness = value
+        self.async_set_updated_data(self._snapshot())
         await self._api.set_brightness(value)
 
     async def set_color_rgb(self, r: int, g: int, b: int) -> None:
+        # Optimistic update for instant UI response
+        self._api.color_rgb = (r, g, b)
+        self._api.color_temp = None  # clear color temp when RGB is set
+        self.async_set_updated_data(self._snapshot())
         await self._api.set_color_rgb(r, g, b)
 
     async def set_color_temp(self, kelvin: int) -> None:
+        # Optimistic update for instant UI response
+        self._api.color_temp = kelvin
+        self._api.color_rgb = None  # clear RGB when color temp is set
+        self.async_set_updated_data(self._snapshot())
         await self._api.set_color_temp(kelvin)

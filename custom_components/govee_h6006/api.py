@@ -1,11 +1,21 @@
 from __future__ import annotations
+import asyncio
 import logging
 import time
 from bleak import BleakClient, BLEDevice
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak_retry_connector import establish_connection
 
-from .const import WRITE_CHARACTERISTIC_UUID, READ_CHARACTERISTIC_UUID, MIN_KELVIN, MAX_KELVIN
+from .const import (
+    WRITE_CHARACTERISTIC_UUID,
+    READ_CHARACTERISTIC_UUID,
+    MIN_KELVIN,
+    MAX_KELVIN,
+    MAX_RECONNECT_ATTEMPTS,
+    RECONNECT_BACKOFF_BASE,
+    RECONNECT_BACKOFF_MAX,
+    RECONNECT_COOLDOWN_SECONDS,
+)
 from .api_utils import GoveePacket
 
 _LOGGER = logging.getLogger(__name__)
@@ -42,18 +52,144 @@ class GoveeAPI:
         self._suppression_window = suppression_window
         self._last_callback_time = 0.0
         self._client: BleakClient | None = None
+        self._connect_lock = asyncio.Lock()
+        self._suppress_update_until = 0.0  # Suppress notifications after command for 500ms
         self.state: bool | None = None
         self.brightness: int | None = None
         self.color_rgb: tuple[int, int, int] | None = None
         self.color_temp: int | None = None
+        # Connection state tracking
+        self._reconnect_attempts: int = 0
+        self._last_disconnect_time: float | None = None
+        self._is_reconnecting: bool = False
+        self._connection_lock: asyncio.Lock = asyncio.Lock()
 
     @property
     def address(self) -> str:
         return self._ble_device.address
 
+    @property
+    def is_available(self) -> bool:
+        """Return True if device is available (connected or can reconnect)."""
+        # If currently connected, device is available
+        if self._client is not None and self._client.is_connected:
+            return True
+
+        # If max reconnection attempts exceeded, check cooldown period
+        if self._reconnect_attempts >= MAX_RECONNECT_ATTEMPTS:
+            # If cooldown period has elapsed, reset counter and allow retry
+            if self._last_disconnect_time is not None:
+                cooldown_elapsed = time.time() - self._last_disconnect_time
+                if cooldown_elapsed >= RECONNECT_COOLDOWN_SECONDS:
+                    _LOGGER.info(
+                        "Cooldown period (%ds) elapsed for %s, resetting reconnection counter and retrying",
+                        RECONNECT_COOLDOWN_SECONDS,
+                        self.address
+                    )
+                    self._reconnect_attempts = 0
+                    self._last_disconnect_time = None
+                    return True
+            # Cooldown not elapsed, device still unavailable
+            return False
+
+        # Under max attempts, device is available
+        return True
+
     def update_device(self, ble_device: BLEDevice) -> None:
         """Refresh the BLE device handle (call before connecting if handle may be stale)."""
         self._ble_device = ble_device
+
+    async def _retry_connection(self) -> bool:
+        """
+        Attempt to reconnect with exponential backoff.
+
+        Returns True if reconnection succeeded, False if max attempts exceeded or skipped.
+        Logs all attempts at debug level.
+        """
+        # Check if reconnection is already in progress
+        if self._is_reconnecting:
+            _LOGGER.debug(
+                "Reconnection already in progress for %s, skipping",
+                self.address
+            )
+            return False
+
+        # Mark reconnection in progress before acquiring lock
+        self._is_reconnecting = True
+
+        try:
+            async with self._connection_lock:
+                # Check if already connected after acquiring lock
+                if self._client is not None and self._client.is_connected:
+                    _LOGGER.debug("Already connected to %s, no reconnection needed", self.address)
+                    # Reset attempts counter since we're connected
+                    self._reconnect_attempts = 0
+                    return False  # No reconnection performed
+
+                while self._reconnect_attempts < MAX_RECONNECT_ATTEMPTS:
+                    # Calculate exponential backoff based on number of previous failures
+                    # After N failures, wait base * (2 ** (N-1)) seconds: 1s, 2s, 4s, 8s...
+                    if self._reconnect_attempts > 0:
+                        backoff = min(
+                            RECONNECT_BACKOFF_BASE * (2 ** (self._reconnect_attempts - 1)),
+                            RECONNECT_BACKOFF_MAX
+                        )
+                        _LOGGER.debug(
+                            "Reconnection attempt %d/%d for %s, waiting %.1fs",
+                            self._reconnect_attempts + 1,
+                            MAX_RECONNECT_ATTEMPTS,
+                            self.address,
+                            backoff
+                        )
+                        await asyncio.sleep(backoff)
+                    else:
+                        _LOGGER.debug(
+                            "Reconnection attempt %d/%d for %s",
+                            self._reconnect_attempts + 1,
+                            MAX_RECONNECT_ATTEMPTS,
+                            self.address
+                        )
+
+                    try:
+                        # Attempt to establish connection
+                        self._client = await establish_connection(
+                            BleakClient, self._ble_device, self.address
+                        )
+                        await self._client.start_notify(
+                            READ_CHARACTERISTIC_UUID, self._handle_notification
+                        )
+
+                        # Success! Reset state
+                        _LOGGER.debug(
+                            "Reconnection successful for %s after %d attempts",
+                            self.address,
+                            self._reconnect_attempts + 1
+                        )
+                        self._reconnect_attempts = 0
+                        self._last_disconnect_time = None
+                        return True
+
+                    except Exception as err:
+                        self._reconnect_attempts += 1
+                        self._last_disconnect_time = time.time()
+                        _LOGGER.debug(
+                            "Reconnection attempt %d/%d failed for %s: %s",
+                            self._reconnect_attempts,
+                            MAX_RECONNECT_ATTEMPTS,
+                            self.address,
+                            err
+                        )
+
+                # Max attempts exceeded
+                _LOGGER.warning(
+                    "Max reconnection attempts (%d) exceeded for %s, marking unavailable",
+                    MAX_RECONNECT_ATTEMPTS,
+                    self.address
+                )
+                return False
+
+        finally:
+            self._is_reconnecting = False
 
     async def _ensure_connected(self) -> None:
         if self._client is not None and self._client.is_connected:
@@ -69,6 +205,9 @@ class GoveeAPI:
 
     async def _write(self, packet: bytes) -> None:
         await self._ensure_connected()
+        # Suppress state notifications for 500ms to prevent stale device state
+        # from overwriting optimistic updates
+        self._suppress_update_until = time.time() + 0.5
         await self._client.write_gatt_char(WRITE_CHARACTERISTIC_UUID, packet, False)
 
     async def _handle_notification(
@@ -84,16 +223,33 @@ class GoveeAPI:
             return
         if frame[0] != _REQUEST_HEAD:
             return
+
+        # Suppress notifications for 500ms after sending a command
+        # This prevents the device's old state from overwriting optimistic updates
+        if time.time() < self._suppress_update_until:
+            _LOGGER.debug("Suppressing notification (recent command in flight)")
+            return
+
         cmd = frame[1]
-        if cmd == _POWER_CMD:
-            self.state = frame[2] == 0x01
-        elif cmd == _BRIGHTNESS_CMD:
-            self.brightness = frame[2]
-        elif cmd == _COLOR_CMD:
-            if frame[6] == 0x01:  # white mode
-                warm = frame[7]
-                self.color_temp = round(MAX_KELVIN - (warm / 255) * (MAX_KELVIN - MIN_KELVIN))
-                self.color_rgb = None  # clear stale RGB
+        try:
+            if cmd == _POWER_CMD:
+                self.state = frame[2] == 0x01
+                _LOGGER.debug(f"Notification: power={self.state}")
+            elif cmd == _BRIGHTNESS_CMD:
+                self.brightness = frame[2]
+                _LOGGER.debug(f"Notification: brightness={self.brightness}")
+            elif cmd == _COLOR_CMD:
+                # Detect white mode by checking if R, G, B are all 0xFF
+                is_white_mode = frame[3] == 0xFF and frame[4] == 0xFF and frame[5] == 0xFF
+                if is_white_mode:
+                    warm = frame[7]
+                    self.color_temp = round(MAX_KELVIN - (warm / 255) * (MAX_KELVIN - MIN_KELVIN))
+                    self.color_rgb = None  # clear stale RGB
+                    _LOGGER.debug(f"Notification: color_temp={self.color_temp}K (white mode)")
+                else:
+                    self.color_rgb = (frame[3], frame[4], frame[5])
+                    self.color_temp = None  # clear stale color temp
+                    _LOGGER.debug(f"Notification: color_rgb={self.color_rgb}")
             else:
                 self.color_rgb = (frame[3], frame[4], frame[5])
                 self.color_temp = None  # clear stale color temp
@@ -108,19 +264,24 @@ class GoveeAPI:
     async def poll_state(self) -> None:
         """Request current power, brightness, and color state from the device."""
         await self._ensure_connected()
+        _LOGGER.debug("Polling device state")
         for cmd in (_POWER_CMD, _BRIGHTNESS_CMD, _COLOR_CMD):
             await self._client.write_gatt_char(
                 WRITE_CHARACTERISTIC_UUID, _build_query(cmd), False
             )
 
     async def set_power(self, on: bool) -> None:
+        _LOGGER.debug(f"Sending power command: on={on}")
         await self._write(GoveePacket.power(on))
 
     async def set_brightness(self, value: int) -> None:
+        _LOGGER.debug(f"Sending brightness command: value={value}")
         await self._write(GoveePacket.brightness(value))
 
     async def set_color_rgb(self, r: int, g: int, b: int) -> None:
+        _LOGGER.debug(f"Sending RGB command: r={r}, g={g}, b={b}")
         await self._write(GoveePacket.color_rgb(r, g, b))
 
     async def set_color_temp(self, kelvin: int) -> None:
+        _LOGGER.debug(f"Sending color temp command: kelvin={kelvin}")
         await self._write(GoveePacket.color_temp(kelvin))

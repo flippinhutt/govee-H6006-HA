@@ -1,0 +1,25 @@
+{
+  "active": true,
+  "spec": "001-automatic-ble-reconnection-with-exponential-backof",
+  "state": "complete",
+  "subtasks": {
+    "completed": 11,
+    "total": 11,
+    "in_progress": 0,
+    "failed": 0
+  },
+  "phase": {
+    "current": "Integration Verification",
+    "id": null,
+    "total": 2
+  },
+  "workers": {
+    "active": 0,
+    "max": 1
+  },
+  "session": {
+    "number": 12,
+    "started_at": "2026-03-14T15:00:15.763688"
+  },
+  "last_update": "2026-03-14T15:41:15.027435"
+}
