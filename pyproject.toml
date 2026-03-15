@@ -61,19 +61,30 @@ ignore_missing_imports = true
 
 # Per-module configuration - apply strict mode to core modules
 [[tool.mypy.overrides]]
-module = [
-    "custom_components.govee_h6006.api",
-    "custom_components.govee_h6006.api_utils",
-    "custom_components.govee_h6006.coordinator",
-]
+module = "custom_components.govee_h6006.api"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "custom_components.govee_h6006.api_utils"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "custom_components.govee_h6006.coordinator"
 strict = true
 
 # Ignore stubbed test dependencies
 [[tool.mypy.overrides]]
-module = [
-    "homeassistant.*",
-    "bleak.*",
-    "bleak_retry_connector.*",
-    "pytest.*",
-]
+module = "homeassistant.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "bleak.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "bleak_retry_connector.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "pytest.*"
 ignore_missing_imports = true
