@@ -261,3 +261,90 @@ async def test_set_color_temp_rollback_preserves_rgb(mock_hass, config_entry, mo
         assert coordinator.data.color_temp is None
         assert api_instance.color_rgb == (0, 255, 0)
         assert api_instance.color_temp is None
+
+
+@pytest.mark.asyncio
+async def test_error_messages_are_actionable(mock_hass, config_entry, mock_ble_device):
+    """Test that all HomeAssistantError messages are clear and actionable.
+
+    Actionable error messages should:
+    1. Clearly state what operation failed
+    2. Include the underlying error cause
+    3. Allow users to understand what went wrong
+    """
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI:
+        # Test each command method with different error types
+        test_scenarios = [
+            {
+                "method": "set_power",
+                "args": [True],
+                "error": ConnectionError("Device not reachable"),
+                "expected_prefix": "Failed to set power state",
+                "expected_cause": "Device not reachable",
+            },
+            {
+                "method": "set_brightness",
+                "args": [150],
+                "error": TimeoutError("Command timed out after 5s"),
+                "expected_prefix": "Failed to set brightness",
+                "expected_cause": "Command timed out after 5s",
+            },
+            {
+                "method": "set_color_rgb",
+                "args": [255, 128, 0],
+                "error": OSError("Bluetooth adapter unavailable"),
+                "expected_prefix": "Failed to set color RGB",
+                "expected_cause": "Bluetooth adapter unavailable",
+            },
+            {
+                "method": "set_color_temp",
+                "args": [4500],
+                "error": RuntimeError("BLE write failed: GATT error"),
+                "expected_prefix": "Failed to set color temperature",
+                "expected_cause": "BLE write failed: GATT error",
+            },
+        ]
+
+        for scenario in test_scenarios:
+            # Set up API mock with basic state
+            api_instance = AsyncMock()
+            api_instance.state = True
+            api_instance.brightness = 128
+            api_instance.color_rgb = (255, 255, 255)
+            api_instance.color_temp = None
+            api_instance.is_available = True
+
+            # Configure the specific method to raise the test error
+            getattr(api_instance, scenario["method"]).side_effect = scenario["error"]
+
+            MockAPI.return_value = api_instance
+
+            coordinator = GoveeCoordinator(mock_hass, config_entry)
+
+            # Call the method and capture the error
+            with pytest.raises(HomeAssistantError) as exc_info:
+                await getattr(coordinator, scenario["method"])(*scenario["args"])
+
+            # Verify error message is actionable
+            error_message = str(exc_info.value)
+
+            # 1. Check it describes what operation failed
+            assert scenario["expected_prefix"] in error_message, (
+                f"Error message should start with '{scenario['expected_prefix']}', "
+                f"got: {error_message}"
+            )
+
+            # 2. Check it includes the underlying cause
+            assert scenario["expected_cause"] in error_message, (
+                f"Error message should include underlying cause '{scenario['expected_cause']}', "
+                f"got: {error_message}"
+            )
+
+            # 3. Check the message follows the format "Failed to <operation>: <cause>"
+            assert error_message.startswith(scenario["expected_prefix"]), (
+                f"Error message should follow format 'Failed to <operation>: <cause>', "
+                f"got: {error_message}"
+            )
