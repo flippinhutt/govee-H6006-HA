@@ -106,8 +106,13 @@ async def test_notification_updates_state(api, mock_bleak_client, update_callbac
 @pytest.mark.asyncio
 async def test_reconnect_on_mid_session_disconnect(api, mock_bleak_client):
     """Test that API automatically reconnects when connection drops mid-session."""
+    async def connect_side_effect(*args, **kwargs):
+        # Restore is_connected to True after connection
+        mock_bleak_client.is_connected = True
+        return mock_bleak_client
+
     with patch("custom_components.govee_h6006.api.establish_connection",
-               return_value=mock_bleak_client) as mock_connect:
+               side_effect=connect_side_effect) as mock_connect:
         # Establish initial connection
         await api.set_power(True)
         assert mock_connect.call_count == 1

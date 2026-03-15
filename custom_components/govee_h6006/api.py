@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+from collections import deque
 import logging
 import time
 from bleak import BleakClient, BLEDevice
@@ -54,6 +55,7 @@ class GoveeAPI:
         self._connection_lock: asyncio.Lock = asyncio.Lock()
         # Diagnostic metrics
         self.rssi: int | None = None
+        self._connection_attempts: deque[bool] = deque(maxlen=10)  # Track last 10 attempts (True=success, False=failure)
 
     @property
     def address(self) -> str:
@@ -85,6 +87,14 @@ class GoveeAPI:
 
         # Under max attempts, device is available
         return True
+
+    @property
+    def connection_success_rate(self) -> float | None:
+        """Return connection success rate as percentage (0-100) over last 10 attempts, or None if no attempts."""
+        if not self._connection_attempts:
+            return None
+        successful = sum(1 for attempt in self._connection_attempts if attempt)
+        return round((successful / len(self._connection_attempts)) * 100, 1)
 
     def update_device(self, ble_device: BLEDevice) -> None:
         """Refresh the BLE device handle (call before connecting if handle may be stale)."""
@@ -152,6 +162,7 @@ class GoveeAPI:
 
                         # Success! Reset state and capture RSSI
                         self.rssi = self._ble_device.rssi
+                        self._connection_attempts.append(True)  # Record successful connection
                         _LOGGER.debug(
                             "Reconnection successful for %s after %d attempts (RSSI: %s dBm)",
                             self.address,
@@ -165,6 +176,7 @@ class GoveeAPI:
                     except Exception as err:
                         self._reconnect_attempts += 1
                         self._last_disconnect_time = time.time()
+                        self._connection_attempts.append(False)  # Record failed connection
                         _LOGGER.debug(
                             "Reconnection attempt %d/%d failed for %s: %s",
                             self._reconnect_attempts,
