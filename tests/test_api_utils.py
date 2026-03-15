@@ -64,6 +64,69 @@ def test_color_temp_packet_cold():
     assert _valid_checksum(frame)
 
 
+def test_color_temp_clamps_below_minimum():
+    """Values below 2700K should clamp to 2700K (warmest)"""
+    frame = GoveePacket.color_temp(2000)
+    assert frame[0] == 0x33
+    assert frame[1] == 0x05
+    assert frame[2] == 0x02       # color mode
+    assert frame[3] == 0xFF       # white R
+    assert frame[4] == 0xFF       # white G
+    assert frame[5] == 0xFF       # white B
+    assert frame[6] == 0x01       # white sub-mode
+    assert frame[7] == 255        # warm = max (clamped to 2700K)
+    assert frame[8] == 0          # cold = 0 (clamped to 2700K)
+    assert _valid_checksum(frame)
+
+
+def test_color_temp_clamps_above_maximum():
+    """Values above 6500K should clamp to 6500K (coldest)"""
+    frame = GoveePacket.color_temp(7000)
+    assert frame[0] == 0x33
+    assert frame[1] == 0x05
+    assert frame[2] == 0x02       # color mode
+    assert frame[3] == 0xFF       # white R
+    assert frame[4] == 0xFF       # white G
+    assert frame[5] == 0xFF       # white B
+    assert frame[6] == 0x01       # white sub-mode
+    assert frame[7] == 0          # warm = 0 (clamped to 6500K)
+    assert frame[8] == 255        # cold = max (clamped to 6500K)
+    assert _valid_checksum(frame)
+
+
+def test_color_temp_midrange():
+    """Mid-range value (4600K) should have balanced warm/cold"""
+    frame = GoveePacket.color_temp(4600)
+    assert frame[0] == 0x33
+    assert frame[1] == 0x05
+    assert frame[2] == 0x02       # color mode
+    assert frame[3] == 0xFF       # white R
+    assert frame[4] == 0xFF       # white G
+    assert frame[5] == 0xFF       # white B
+    assert frame[6] == 0x01       # white sub-mode
+    # 4600K is exactly halfway between 2700K and 6500K
+    # warm = (6500 - 4600) / (6500 - 2700) * 255 = 1900/3800 * 255 = 127.5 -> 128
+    # cold = 255 - 128 = 127
+    assert frame[7] == 128        # warm
+    assert frame[8] == 127        # cold
+    assert _valid_checksum(frame)
+
+
+def test_color_temp_extreme_values():
+    """Extremely out of range values should still clamp correctly"""
+    # Very low value
+    frame_low = GoveePacket.color_temp(0)
+    assert frame_low[7] == 255    # warm = max
+    assert frame_low[8] == 0      # cold = 0
+    assert _valid_checksum(frame_low)
+
+    # Very high value
+    frame_high = GoveePacket.color_temp(10000)
+    assert frame_high[7] == 0     # warm = 0
+    assert frame_high[8] == 255   # cold = max
+    assert _valid_checksum(frame_high)
+
+
 def test_checksum_is_xor_of_first_19_bytes():
     frame = GoveePacket.power(True)
     expected = 0
