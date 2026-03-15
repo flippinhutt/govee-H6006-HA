@@ -483,3 +483,176 @@ async def test_notification_checksum_off_by_one(api, update_callback):
     # State should not be updated due to bad checksum
     assert api.state is None
     update_callback.assert_not_called()
+
+
+# ========================================
+# poll_state Error Handling and Edge Cases
+# ========================================
+
+@pytest.mark.asyncio
+async def test_poll_state_connection_failure(api):
+    """Test that poll_state handles connection failures correctly."""
+    with patch("custom_components.govee_h6006.api.establish_connection") as mock_connect:
+        # Make establish_connection fail
+        mock_connect.side_effect = Exception("Connection failed")
+
+        with pytest.raises(Exception) as exc_info:
+            await api.poll_state()
+
+        assert "Connection failed" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_poll_state_first_query_fails(api, mock_bleak_client):
+    """Test that poll_state handles failure on first query (power)."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        # Make write_gatt_char fail on first call (power query)
+        mock_bleak_client.write_gatt_char.side_effect = Exception("BLE write failed")
+
+        with pytest.raises(Exception) as exc_info:
+            await api.poll_state()
+
+        assert "BLE write failed" in str(exc_info.value)
+        # Should only have attempted one write before failing
+        assert mock_bleak_client.write_gatt_char.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_poll_state_last_query_fails(api, mock_bleak_client):
+    """Test that poll_state handles failure on last query (color)."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        # Make write_gatt_char fail on third call (color query)
+        mock_bleak_client.write_gatt_char.side_effect = [
+            None,  # Power query succeeds
+            None,  # Brightness query succeeds
+            Exception("BLE write failed"),  # Color query fails
+        ]
+
+        with pytest.raises(Exception) as exc_info:
+            await api.poll_state()
+
+        assert "BLE write failed" in str(exc_info.value)
+        # Should have attempted three writes
+        assert mock_bleak_client.write_gatt_char.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_poll_state_disconnection_during_polling(api, mock_bleak_client):
+    """Test that poll_state handles disconnection during polling."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client) as mock_connect:
+        # First call succeeds, then simulate disconnection
+        async def write_with_disconnect(*args, **kwargs):
+            # Simulate disconnection after first write
+            if mock_bleak_client.write_gatt_char.call_count >= 1:
+                mock_bleak_client.is_connected = False
+                raise Exception("Device disconnected")
+
+        mock_bleak_client.write_gatt_char.side_effect = write_with_disconnect
+
+        with pytest.raises(Exception) as exc_info:
+            await api.poll_state()
+
+        assert "Device disconnected" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_poll_state_success(api, mock_bleak_client):
+    """Test that poll_state successfully queries all three commands."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        await api.poll_state()
+
+        # Should have called write_gatt_char exactly 3 times (power, brightness, color)
+        assert mock_bleak_client.write_gatt_char.call_count == 3
+
+        # Verify the command bytes sent for each query
+        calls = mock_bleak_client.write_gatt_char.call_args_list
+
+        # First call: power query (cmd=0x01)
+        power_query = calls[0][0][1]
+        assert power_query[0] == 0xAA  # Query head
+        assert power_query[1] == 0x01  # Power command
+
+        # Second call: brightness query (cmd=0x04)
+        brightness_query = calls[1][0][1]
+        assert brightness_query[0] == 0xAA  # Query head
+        assert brightness_query[1] == 0x04  # Brightness command
+
+        # Third call: color query (cmd=0x05)
+        color_query = calls[2][0][1]
+        assert color_query[0] == 0xAA  # Query head
+        assert color_query[1] == 0x05  # Color command
+
+
+@pytest.mark.asyncio
+async def test_poll_state_multiple_consecutive_failures(api, mock_bleak_client):
+    """Test that multiple consecutive poll_state failures are handled."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        mock_bleak_client.write_gatt_char.side_effect = Exception("BLE write failed")
+
+        # First poll fails
+        with pytest.raises(Exception):
+            await api.poll_state()
+
+        # Second poll also fails
+        with pytest.raises(Exception):
+            await api.poll_state()
+
+        # Third poll also fails
+        with pytest.raises(Exception):
+            await api.poll_state()
+
+        # Should have attempted 3 writes total (one per failed poll)
+        assert mock_bleak_client.write_gatt_char.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_poll_state_reuses_existing_connection(api, mock_bleak_client):
+    """Test that poll_state reuses an existing connection."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client) as mock_connect:
+        # First poll establishes connection
+        await api.poll_state()
+        assert mock_connect.call_count == 1
+
+        # Second poll reuses connection
+        await api.poll_state()
+        assert mock_connect.call_count == 1  # Still only called once
+
+        # Should have 6 total writes (3 per poll)
+        assert mock_bleak_client.write_gatt_char.call_count == 6
+
+
+@pytest.mark.asyncio
+async def test_poll_state_after_disconnection_reconnects(api, mock_bleak_client):
+    """Test that poll_state reconnects after disconnection."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client) as mock_connect:
+        # First poll establishes connection
+        await api.poll_state()
+        assert mock_connect.call_count == 1
+
+        # Simulate disconnection by clearing client
+        api._client = None
+
+        # Second poll should reconnect
+        await api.poll_state()
+        assert mock_connect.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_poll_state_timeout_propagates(api, mock_bleak_client):
+    """Test that timeout during poll_state is handled."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        # Make write_gatt_char timeout
+        mock_bleak_client.write_gatt_char.side_effect = TimeoutError("Timeout")
+
+        with pytest.raises(TimeoutError) as exc_info:
+            await api.poll_state()
+
+        assert "Timeout" in str(exc_info.value)
