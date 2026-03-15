@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Awaitable, Callable, cast
+from collections.abc import Awaitable, Callable
+from typing import cast
 
 from bleak import BleakClient, BLEDevice
 from bleak.backends.characteristic import BleakGATTCharacteristic
@@ -40,7 +41,9 @@ def _build_query(cmd: int) -> bytes:
 
 
 class GoveeAPI:
-    def __init__(self, ble_device: BLEDevice, update_callback: Callable[[], Awaitable[None]]) -> None:
+    def __init__(
+        self, ble_device: BLEDevice, update_callback: Callable[[], Awaitable[None]]
+    ) -> None:
         self._ble_device = ble_device
         self._update_callback = update_callback
         self._client: BleakClient | None = None
@@ -192,13 +195,6 @@ class GoveeAPI:
             raise ConnectionError(
                 f"Failed to connect to {self.address} after {MAX_RECONNECT_ATTEMPTS} attempts"
             )
-        async with self._connect_lock:
-            if self._client is not None and self._client.is_connected:
-                return
-            self._client = await establish_connection(
-                BleakClient, self._ble_device, self.address, timeout=15.0
-            )
-            await self._client.start_notify(READ_CHARACTERISTIC_UUID, self._handle_notification)
 
     async def _write(self, packet: bytes) -> None:
         await self._ensure_connected()

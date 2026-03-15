@@ -5,16 +5,6 @@ line-length = 100
 # Assume Python 3.11 (Home Assistant minimum version)
 target-version = "py311"
 
-# Enable specific rule sets
-select = [
-    "E",   # pycodestyle errors
-    "F",   # Pyflakes
-    "W",   # pycodestyle warnings
-    "I",   # isort (import sorting)
-    "N",   # pep8-naming
-    "UP",  # pyupgrade (modern Python syntax)
-]
-
 # Directories and files to exclude from linting
 exclude = [
     "__pycache__",
@@ -29,6 +19,16 @@ exclude = [
 ]
 
 [tool.ruff.lint]
+# Enable specific rule sets
+select = [
+    "E",   # pycodestyle errors
+    "F",   # Pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort (import sorting)
+    "N",   # pep8-naming
+    "UP",  # pyupgrade (modern Python syntax)
+]
+
 # Allow unused variables when prefixed with underscore
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 

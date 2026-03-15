@@ -63,6 +63,30 @@ class _ConfigFlow:
         super().__init_subclass__(**kwargs)
         cls._domain = domain
 
+    def async_show_form(self, *, step_id, data_schema=None, description_placeholders=None):
+        """Return a form result."""
+        return {
+            "type": _FlowResultType.FORM,
+            "step_id": step_id,
+            "data_schema": data_schema,
+            "description_placeholders": description_placeholders or {},
+        }
+
+    def async_create_entry(self, *, title, data):
+        """Create a config entry."""
+        return {
+            "type": _FlowResultType.CREATE_ENTRY,
+            "title": title,
+            "data": data,
+        }
+
+    def async_abort(self, *, reason):
+        """Abort the config flow."""
+        return {
+            "type": _FlowResultType.ABORT,
+            "reason": reason,
+        }
+
 _ha_config_entries_stub.ConfigFlow = _ConfigFlow
 _ha_config_entries_stub.SOURCE_BLUETOOTH = "bluetooth"
 _ha_config_entries_stub.SOURCE_USER = "user"
