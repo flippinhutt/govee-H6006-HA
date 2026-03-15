@@ -4,6 +4,7 @@ import pytest
 from homeassistant import config_entries
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.data_entry_flow import FlowResultType
 
 from custom_components.govee_h6006.const import DOMAIN
 

@@ -186,7 +186,11 @@ class GoveeAPI:
                     try:
                         # Attempt to establish connection
                         self._client = await establish_connection(
-                            BleakClient, self._ble_device, self.address
+                            BleakClient,
+                            self._ble_device,
+                            self.address,
+                            max_attempts=self._max_attempts,
+                            ble_device_callback_timeout=self._timeout,
                         )
                         await self._client.start_notify(
                             READ_CHARACTERISTIC_UUID, self._handle_notification
@@ -242,7 +246,11 @@ class GoveeAPI:
             if self._client is not None and self._client.is_connected:
                 return
             self._client = await establish_connection(
-                BleakClient, self._ble_device, self.address, timeout=20.0
+                BleakClient,
+                self._ble_device,
+                self.address,
+                max_attempts=self._max_attempts,
+                ble_device_callback_timeout=self._timeout,
             )
             await self._client.start_notify(READ_CHARACTERISTIC_UUID, self._handle_notification)
             # Capture RSSI on successful connection
@@ -276,28 +284,26 @@ class GoveeAPI:
             _LOGGER.debug("Suppressing notification (recent command in flight)")
             return
 
-        cmd = frame[1]
-        if cmd == _POWER_CMD:
-            self.state = frame[2] == 0x01
-            _LOGGER.debug(f"Notification: power={self.state}")
-        elif cmd == _BRIGHTNESS_CMD:
-            self.brightness = frame[2]
-            _LOGGER.debug(f"Notification: brightness={self.brightness}")
-        elif cmd == _COLOR_CMD:
-            # Detect white mode by checking if R, G, B are all 0xFF
-            is_white_mode = frame[3] == 0xFF and frame[4] == 0xFF and frame[5] == 0xFF
-            if is_white_mode:
-                warm = frame[7]
-                self.color_temp = round(MAX_KELVIN - (warm / 255) * (MAX_KELVIN - MIN_KELVIN))
-                self.color_rgb = None  # clear stale RGB
-                _LOGGER.debug(f"Notification: color_temp={self.color_temp}K (white mode)")
-            else:
-                self.color_rgb = (frame[3], frame[4], frame[5])
-                self.color_temp = None  # clear stale color temp
-                _LOGGER.debug(f"Notification: color_rgb={self.color_rgb}")
-        else:
-            self.color_rgb = (frame[3], frame[4], frame[5])
-            self.color_temp = None  # clear stale color temp
+        try:
+            cmd = frame[1]
+            if cmd == _POWER_CMD:
+                self.state = frame[2] == 0x01
+                _LOGGER.debug(f"Notification: power={self.state}")
+            elif cmd == _BRIGHTNESS_CMD:
+                self.brightness = frame[2]
+                _LOGGER.debug(f"Notification: brightness={self.brightness}")
+            elif cmd == _COLOR_CMD:
+                # Detect white mode by checking if R, G, B are all 0xFF
+                is_white_mode = frame[3] == 0xFF and frame[4] == 0xFF and frame[5] == 0xFF
+                if is_white_mode:
+                    warm = frame[7]
+                    self.color_temp = round(MAX_KELVIN - (warm / 255) * (MAX_KELVIN - MIN_KELVIN))
+                    self.color_rgb = None  # clear stale RGB
+                    _LOGGER.debug(f"Notification: color_temp={self.color_temp}K (white mode)")
+                else:
+                    self.color_rgb = (frame[3], frame[4], frame[5])
+                    self.color_temp = None  # clear stale color temp
+                    _LOGGER.debug(f"Notification: color_rgb={self.color_rgb}")
 
             # Throttle callbacks based on suppression window
             current_time = time.time() * 1000  # convert to milliseconds

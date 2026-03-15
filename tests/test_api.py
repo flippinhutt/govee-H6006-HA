@@ -154,15 +154,18 @@ async def test_reconnect_resets_state_on_success(api, mock_bleak_client):
 
 @pytest.mark.asyncio
 async def test_connection_timeout_is_20_seconds(api, mock_bleak_client):
-    """Test that establish_connection is called with timeout=20 seconds."""
+    """Test that establish_connection is called with the configured timeout."""
     with patch("custom_components.govee_h6006.api.establish_connection",
                return_value=mock_bleak_client) as mock_connect:
         await api.set_power(True)
 
-        # Verify establish_connection was called with timeout=20
+        # Verify establish_connection was called with the default timeout (15.0)
         call_args = mock_connect.call_args
-        assert 'timeout' in call_args.kwargs
-        assert call_args.kwargs['timeout'] == 20.0
+        assert 'ble_device_callback_timeout' in call_args.kwargs
+        assert call_args.kwargs['ble_device_callback_timeout'] == 15.0
+
+
+@pytest.mark.asyncio
 async def test_api_suppresses_rapid_notifications(mock_ble_device):
     """Test that rapid notifications are throttled based on suppression_window."""
     import time
@@ -246,15 +249,16 @@ async def test_disconnection_during_write(api, mock_bleak_client):
 
 @pytest.mark.asyncio
 async def test_ensure_connected_failure_on_write(api, mock_bleak_client):
-    """Test that connection failures during write are propagated."""
+    """Test that connection failures during write are propagated after retries."""
     with patch("custom_components.govee_h6006.api.establish_connection") as mock_connect:
         # Make establish_connection fail
         mock_connect.side_effect = Exception("Connection failed")
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(ConnectionError) as exc_info:
             await api.set_power(True)
 
-        assert "Connection failed" in str(exc_info.value)
+        # After max retry attempts, a ConnectionError is raised
+        assert "Failed to connect" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -524,15 +528,16 @@ async def test_notification_checksum_off_by_one(api, update_callback):
 
 @pytest.mark.asyncio
 async def test_poll_state_connection_failure(api):
-    """Test that poll_state handles connection failures correctly."""
+    """Test that poll_state handles connection failures correctly after retries."""
     with patch("custom_components.govee_h6006.api.establish_connection") as mock_connect:
         # Make establish_connection fail
         mock_connect.side_effect = Exception("Connection failed")
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(ConnectionError) as exc_info:
             await api.poll_state()
 
-        assert "Connection failed" in str(exc_info.value)
+        # After max retry attempts, a ConnectionError is raised
+        assert "Failed to connect" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
