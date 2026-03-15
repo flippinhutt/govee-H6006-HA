@@ -52,6 +52,8 @@ class GoveeAPI:
         self._last_disconnect_time: float | None = None
         self._is_reconnecting: bool = False
         self._connection_lock: asyncio.Lock = asyncio.Lock()
+        # Diagnostic metrics
+        self.rssi: int | None = None
 
     @property
     def address(self) -> str:
@@ -148,11 +150,13 @@ class GoveeAPI:
                             READ_CHARACTERISTIC_UUID, self._handle_notification
                         )
 
-                        # Success! Reset state
+                        # Success! Reset state and capture RSSI
+                        self.rssi = self._ble_device.rssi
                         _LOGGER.debug(
-                            "Reconnection successful for %s after %d attempts",
+                            "Reconnection successful for %s after %d attempts (RSSI: %s dBm)",
                             self.address,
-                            self._reconnect_attempts + 1
+                            self._reconnect_attempts + 1,
+                            self.rssi
                         )
                         self._reconnect_attempts = 0
                         self._last_disconnect_time = None
@@ -196,6 +200,8 @@ class GoveeAPI:
                 BleakClient, self._ble_device, self.address, timeout=15.0
             )
             await self._client.start_notify(READ_CHARACTERISTIC_UUID, self._handle_notification)
+            # Capture RSSI on successful connection
+            self.rssi = self._ble_device.rssi
 
     async def _write(self, packet: bytes) -> None:
         await self._ensure_connected()
