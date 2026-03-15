@@ -96,12 +96,38 @@ _ha_light_stub = MagicMock()
 _ha_light_stub.ColorMode = _ColorMode
 _ha_light_stub.LightEntity = _LightEntity
 
-# Stub homeassistant.const with Platform
+# Stub homeassistant.components.sensor with SensorDeviceClass, SensorEntity, and SensorStateClass
+class _SensorDeviceClass(str, enum.Enum):
+    SIGNAL_STRENGTH = "signal_strength"
+    TIMESTAMP = "timestamp"
+
+class _SensorStateClass(str, enum.Enum):
+    TOTAL_INCREASING = "total_increasing"
+
+class _SensorEntity:
+    pass
+
+_ha_sensor_stub = MagicMock()
+_ha_sensor_stub.SensorDeviceClass = _SensorDeviceClass
+_ha_sensor_stub.SensorEntity = _SensorEntity
+_ha_sensor_stub.SensorStateClass = _SensorStateClass
+
+# Stub homeassistant.helpers.entity with EntityCategory
+class _EntityCategory(str, enum.Enum):
+    DIAGNOSTIC = "diagnostic"
+
+_ha_entity_stub = MagicMock()
+_ha_entity_stub.EntityCategory = _EntityCategory
+
+# Stub homeassistant.const with Platform and sensor constants
 class _Platform(str, enum.Enum):
     LIGHT = "light"
+    SENSOR = "sensor"
 
 _ha_const_stub = MagicMock()
 _ha_const_stub.Platform = _Platform
+_ha_const_stub.SIGNAL_STRENGTH_DECIBELS_MILLIWATT = "dBm"
+_ha_const_stub.PERCENTAGE = "%"
 
 # CoordinatorEntity stub that stores coordinator
 class _CoordinatorEntity:
@@ -128,9 +154,11 @@ sys.modules["homeassistant.components"] = MagicMock()
 sys.modules["homeassistant.components.bluetooth"] = _ha_bluetooth_stub
 sys.modules["homeassistant.components.bluetooth.passive_update_coordinator"] = _ha_passive_coordinator_stub
 sys.modules["homeassistant.components.light"] = _ha_light_stub
+sys.modules["homeassistant.components.sensor"] = _ha_sensor_stub
 sys.modules["homeassistant.helpers"] = MagicMock()
 sys.modules["homeassistant.helpers.update_coordinator"] = _ha_update_coordinator_stub
 sys.modules["homeassistant.helpers.entity_platform"] = _ha_entity_platform_stub
+sys.modules["homeassistant.helpers.entity"] = _ha_entity_stub
 
 
 # ---------------------------------------------------------------------------
