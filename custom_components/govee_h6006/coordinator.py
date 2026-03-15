@@ -114,11 +114,23 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
             raise HomeAssistantError(f"Failed to set brightness: {err}") from err
 
     async def set_color_rgb(self, r: int, g: int, b: int) -> None:
+        # Save previous state for rollback on failure
+        prev_color_rgb = self._api.color_rgb
+        prev_color_temp = self._api.color_temp
+
         # Optimistic update for instant UI response
         self._api.color_rgb = (r, g, b)
         self._api.color_temp = None  # clear color temp when RGB is set
         self.async_set_updated_data(self._snapshot())
-        await self._api.set_color_rgb(r, g, b)
+
+        try:
+            await self._api.set_color_rgb(r, g, b)
+        except Exception as err:
+            # Rollback to previous state on failure
+            self._api.color_rgb = prev_color_rgb
+            self._api.color_temp = prev_color_temp
+            self.async_set_updated_data(self._snapshot())
+            raise HomeAssistantError(f"Failed to set color RGB: {err}") from err
 
     async def set_color_temp(self, kelvin: int) -> None:
         # Optimistic update for instant UI response
