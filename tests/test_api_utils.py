@@ -43,6 +43,47 @@ def test_rgb_packet():
     assert _valid_checksum(frame)
 
 
+def test_rgb_clamps_to_range():
+    """RGB values should clamp to [0, 255] range"""
+    # Test negative values clamp to 0
+    frame = GoveePacket.color_rgb(-1, -50, -100)
+    assert frame[3] == 0    # R clamps to 0
+    assert frame[4] == 0    # G clamps to 0
+    assert frame[5] == 0    # B clamps to 0
+    assert _valid_checksum(frame)
+
+    # Test values > 255 clamp to 255
+    frame = GoveePacket.color_rgb(256, 300, 500)
+    assert frame[3] == 255  # R clamps to 255
+    assert frame[4] == 255  # G clamps to 255
+    assert frame[5] == 255  # B clamps to 255
+    assert _valid_checksum(frame)
+
+    # Test boundary values
+    frame = GoveePacket.color_rgb(0, 255, 128)
+    assert frame[3] == 0    # R at minimum
+    assert frame[4] == 255  # G at maximum
+    assert frame[5] == 128  # B in range
+    assert _valid_checksum(frame)
+
+
+def test_rgb_clamps_individual_channels():
+    """Each RGB channel should clamp independently"""
+    # R negative, G over max, B in range
+    frame = GoveePacket.color_rgb(-10, 300, 128)
+    assert frame[3] == 0    # R clamps to 0
+    assert frame[4] == 255  # G clamps to 255
+    assert frame[5] == 128  # B unchanged
+    assert _valid_checksum(frame)
+
+    # R in range, G negative, B over max
+    frame = GoveePacket.color_rgb(100, -5, 260)
+    assert frame[3] == 100  # R unchanged
+    assert frame[4] == 0    # G clamps to 0
+    assert frame[5] == 255  # B clamps to 255
+    assert _valid_checksum(frame)
+
+
 def test_color_temp_packet_warm():
     frame = GoveePacket.color_temp(2700)
     assert frame[0] == 0x33
