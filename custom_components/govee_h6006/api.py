@@ -254,12 +254,14 @@ class GoveeAPI:
                 self.color_rgb = (frame[3], frame[4], frame[5])
                 self.color_temp = None  # clear stale color temp
 
-        # Throttle callbacks based on suppression window
-        current_time = time.time() * 1000  # convert to milliseconds
-        if current_time - self._last_callback_time >= self._suppression_window:
-            await self._update_callback()
-            self._last_callback_time = current_time
-        # else: notification suppressed (too soon after last callback)
+            # Throttle callbacks based on suppression window
+            current_time = time.time() * 1000  # convert to milliseconds
+            if current_time - self._last_callback_time >= self._suppression_window:
+                await self._update_callback()
+                self._last_callback_time = current_time
+            # else: notification suppressed (too soon after last callback)
+        except Exception as err:
+            _LOGGER.error(f"Error handling notification: {err}")
 
     async def poll_state(self) -> None:
         """Request current power, brightness, and color state from the device."""
