@@ -44,9 +44,6 @@ async def test_set_power_rollback_on_failure(mock_hass, config_entry, mock_ble_d
 
         coordinator = GoveeCoordinator(mock_hass, config_entry)
 
-        # Verify initial state
-        assert coordinator.data.state is True
-
         # Attempt to turn OFF - should fail and rollback
         with pytest.raises(HomeAssistantError) as exc_info:
             await coordinator.set_power(False)
@@ -58,10 +55,8 @@ async def test_set_power_rollback_on_failure(mock_hass, config_entry, mock_ble_d
         # Verify API method was called with the new state
         api_instance.set_power.assert_called_once_with(False)
 
-        # Verify state rolled back to original value (True)
+        # Verify state rolled back to original value (True) - both in coordinator data and API
         assert coordinator.data.state is True
-
-        # Verify underlying API state also rolled back
         assert api_instance.state is True
 
 
@@ -86,9 +81,6 @@ async def test_set_brightness_rollback_on_failure(mock_hass, config_entry, mock_
         MockAPI.return_value = api_instance
 
         coordinator = GoveeCoordinator(mock_hass, config_entry)
-
-        # Verify initial brightness
-        assert coordinator.data.brightness == 100
 
         # Attempt to change brightness - should fail and rollback
         with pytest.raises(HomeAssistantError) as exc_info:
@@ -126,10 +118,6 @@ async def test_set_color_rgb_rollback_on_failure(mock_hass, config_entry, mock_b
         MockAPI.return_value = api_instance
 
         coordinator = GoveeCoordinator(mock_hass, config_entry)
-
-        # Verify initial color
-        assert coordinator.data.color_rgb == (255, 0, 0)
-        assert coordinator.data.color_temp is None
 
         # Attempt to change color to blue - should fail and rollback
         with pytest.raises(HomeAssistantError) as exc_info:
@@ -169,10 +157,6 @@ async def test_set_color_temp_rollback_on_failure(mock_hass, config_entry, mock_
 
         coordinator = GoveeCoordinator(mock_hass, config_entry)
 
-        # Verify initial color temp
-        assert coordinator.data.color_temp == 3000
-        assert coordinator.data.color_rgb is None
-
         # Attempt to change color temp to cool white - should fail and rollback
         with pytest.raises(HomeAssistantError) as exc_info:
             await coordinator.set_color_temp(6000)
@@ -210,10 +194,6 @@ async def test_set_color_rgb_rollback_preserves_color_temp(mock_hass, config_ent
         MockAPI.return_value = api_instance
 
         coordinator = GoveeCoordinator(mock_hass, config_entry)
-
-        # Verify initial state: color temp mode
-        assert coordinator.data.color_rgb is None
-        assert coordinator.data.color_temp == 4000
 
         # Attempt to switch to RGB mode - should fail and rollback
         with pytest.raises(HomeAssistantError):

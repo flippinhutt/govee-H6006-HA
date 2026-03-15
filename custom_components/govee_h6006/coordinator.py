@@ -43,6 +43,9 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
             update_interval=timedelta(seconds=30),
         )
 
+        # Initialize data with current API state
+        self.data = self._snapshot()
+
     @property
     def available(self) -> bool:
         """Return True if the device is available (connected or can reconnect)."""

@@ -62,6 +62,30 @@ class _ConfigFlow:
         super().__init_subclass__(**kwargs)
         cls._domain = domain
 
+    def async_show_form(self, *, step_id, data_schema=None, description_placeholders=None):
+        """Return a form result."""
+        return {
+            "type": _FlowResultType.FORM,
+            "step_id": step_id,
+            "data_schema": data_schema,
+            "description_placeholders": description_placeholders or {},
+        }
+
+    def async_create_entry(self, *, title, data):
+        """Create a config entry."""
+        return {
+            "type": _FlowResultType.CREATE_ENTRY,
+            "title": title,
+            "data": data,
+        }
+
+    def async_abort(self, *, reason):
+        """Abort the config flow."""
+        return {
+            "type": _FlowResultType.ABORT,
+            "reason": reason,
+        }
+
 _ha_config_entries_stub.ConfigFlow = _ConfigFlow
 _ha_config_entries_stub.SOURCE_BLUETOOTH = "bluetooth"
 _ha_config_entries_stub.SOURCE_USER = "user"
@@ -103,6 +127,13 @@ class _Platform(str, enum.Enum):
 _ha_const_stub = MagicMock()
 _ha_const_stub.Platform = _Platform
 
+# Stub homeassistant.exceptions with HomeAssistantError
+class _HomeAssistantError(Exception):
+    pass
+
+_ha_exceptions_stub = MagicMock()
+_ha_exceptions_stub.HomeAssistantError = _HomeAssistantError
+
 # CoordinatorEntity stub that stores coordinator
 class _CoordinatorEntity:
     def __init_subclass__(cls, **kwargs):
@@ -124,6 +155,7 @@ sys.modules["homeassistant.core"] = _ha_core_stub
 sys.modules["homeassistant.config_entries"] = _ha_config_entries_stub
 sys.modules["homeassistant.data_entry_flow"] = _ha_data_entry_flow_stub
 sys.modules["homeassistant.const"] = _ha_const_stub
+sys.modules["homeassistant.exceptions"] = _ha_exceptions_stub
 sys.modules["homeassistant.components"] = MagicMock()
 sys.modules["homeassistant.components.bluetooth"] = _ha_bluetooth_stub
 sys.modules["homeassistant.components.bluetooth.passive_update_coordinator"] = _ha_passive_coordinator_stub
