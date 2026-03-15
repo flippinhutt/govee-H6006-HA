@@ -4,6 +4,12 @@ All notable changes to the Govee H6006 Home Assistant integration are documented
 
 ## [Unreleased]
 
+### Added
+- **Code linting with ruff** — Configured in pyproject.toml with rules for code quality, import sorting, and style consistency
+- **Type checking with mypy** — Strict type checking configured for core modules (api.py, api_utils.py, coordinator.py) to catch bugs at development time
+- **pyproject.toml** — Centralized configuration for ruff and mypy with project-specific rules
+- **Pre-commit hook support** — Optional local setup documented in CLAUDE.md for automatic linting and type checking before commits
+
 ### Fixed
 - **Optimistic updates for instant UI responsiveness** — Commands sent from Home Assistant (power, brightness, color) now update the local coordinator state immediately
 - **State reversion bug** — Device no longer reverts to previous values after changing state. Fixed by suppressing notifications for 500ms after sending commands, preventing the device's echoed old state from overwriting optimistic updates
