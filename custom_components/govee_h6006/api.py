@@ -6,7 +6,16 @@ from bleak import BleakClient, BLEDevice
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak_retry_connector import establish_connection
 
-from .const import WRITE_CHARACTERISTIC_UUID, READ_CHARACTERISTIC_UUID, MIN_KELVIN, MAX_KELVIN
+from .const import (
+    WRITE_CHARACTERISTIC_UUID,
+    READ_CHARACTERISTIC_UUID,
+    MIN_KELVIN,
+    MAX_KELVIN,
+    MAX_RECONNECT_ATTEMPTS,
+    RECONNECT_BACKOFF_BASE,
+    RECONNECT_BACKOFF_MAX,
+    RECONNECT_COOLDOWN_SECONDS,
+)
 from .api_utils import GoveePacket
 
 _LOGGER = logging.getLogger(__name__)
@@ -38,18 +47,148 @@ class GoveeAPI:
         self.brightness: int | None = None
         self.color_rgb: tuple[int, int, int] | None = None
         self.color_temp: int | None = None
+        # Connection state tracking
+        self._reconnect_attempts: int = 0
+        self._last_disconnect_time: float | None = None
+        self._is_reconnecting: bool = False
+        self._connection_lock: asyncio.Lock = asyncio.Lock()
 
     @property
     def address(self) -> str:
         return self._ble_device.address
 
+    @property
+    def is_available(self) -> bool:
+        """Return True if device is available (connected or can reconnect)."""
+        # If currently connected, device is available
+        if self._client is not None and self._client.is_connected:
+            return True
+
+        # If max reconnection attempts exceeded, check cooldown period
+        if self._reconnect_attempts >= MAX_RECONNECT_ATTEMPTS:
+            # If cooldown period has elapsed, reset counter and allow retry
+            if self._last_disconnect_time is not None:
+                cooldown_elapsed = time.time() - self._last_disconnect_time
+                if cooldown_elapsed >= RECONNECT_COOLDOWN_SECONDS:
+                    _LOGGER.info(
+                        "Cooldown period (%ds) elapsed for %s, resetting reconnection counter and retrying",
+                        RECONNECT_COOLDOWN_SECONDS,
+                        self.address
+                    )
+                    self._reconnect_attempts = 0
+                    self._last_disconnect_time = None
+                    return True
+            # Cooldown not elapsed, device still unavailable
+            return False
+
+        # Under max attempts, device is available
+        return True
+
     def update_device(self, ble_device: BLEDevice) -> None:
         """Refresh the BLE device handle (call before connecting if handle may be stale)."""
         self._ble_device = ble_device
 
+    async def _retry_connection(self) -> bool:
+        """
+        Attempt to reconnect with exponential backoff.
+
+        Returns True if reconnection succeeded, False if max attempts exceeded or skipped.
+        Logs all attempts at debug level.
+        """
+        # Check if reconnection is already in progress
+        if self._is_reconnecting:
+            _LOGGER.debug(
+                "Reconnection already in progress for %s, skipping",
+                self.address
+            )
+            return False
+
+        # Mark reconnection in progress before acquiring lock
+        self._is_reconnecting = True
+
+        try:
+            async with self._connection_lock:
+                # Check if already connected after acquiring lock
+                if self._client is not None and self._client.is_connected:
+                    _LOGGER.debug("Already connected to %s, no reconnection needed", self.address)
+                    # Reset attempts counter since we're connected
+                    self._reconnect_attempts = 0
+                    return False  # No reconnection performed
+
+                while self._reconnect_attempts < MAX_RECONNECT_ATTEMPTS:
+                    # Calculate exponential backoff based on number of previous failures
+                    # After N failures, wait base * (2 ** (N-1)) seconds: 1s, 2s, 4s, 8s...
+                    if self._reconnect_attempts > 0:
+                        backoff = min(
+                            RECONNECT_BACKOFF_BASE * (2 ** (self._reconnect_attempts - 1)),
+                            RECONNECT_BACKOFF_MAX
+                        )
+                        _LOGGER.debug(
+                            "Reconnection attempt %d/%d for %s, waiting %.1fs",
+                            self._reconnect_attempts + 1,
+                            MAX_RECONNECT_ATTEMPTS,
+                            self.address,
+                            backoff
+                        )
+                        await asyncio.sleep(backoff)
+                    else:
+                        _LOGGER.debug(
+                            "Reconnection attempt %d/%d for %s",
+                            self._reconnect_attempts + 1,
+                            MAX_RECONNECT_ATTEMPTS,
+                            self.address
+                        )
+
+                    try:
+                        # Attempt to establish connection
+                        self._client = await establish_connection(
+                            BleakClient, self._ble_device, self.address
+                        )
+                        await self._client.start_notify(
+                            READ_CHARACTERISTIC_UUID, self._handle_notification
+                        )
+
+                        # Success! Reset state
+                        _LOGGER.debug(
+                            "Reconnection successful for %s after %d attempts",
+                            self.address,
+                            self._reconnect_attempts + 1
+                        )
+                        self._reconnect_attempts = 0
+                        self._last_disconnect_time = None
+                        return True
+
+                    except Exception as err:
+                        self._reconnect_attempts += 1
+                        self._last_disconnect_time = time.time()
+                        _LOGGER.debug(
+                            "Reconnection attempt %d/%d failed for %s: %s",
+                            self._reconnect_attempts,
+                            MAX_RECONNECT_ATTEMPTS,
+                            self.address,
+                            err
+                        )
+
+                # Max attempts exceeded
+                _LOGGER.warning(
+                    "Max reconnection attempts (%d) exceeded for %s, marking unavailable",
+                    MAX_RECONNECT_ATTEMPTS,
+                    self.address
+                )
+                return False
+
+        finally:
+            self._is_reconnecting = False
+
     async def _ensure_connected(self) -> None:
         if self._client is not None and self._client.is_connected:
             return
+        # Use retry logic with exponential backoff
+        success = await self._retry_connection()
+        if not success:
+            raise ConnectionError(
+                f"Failed to connect to {self.address} after {MAX_RECONNECT_ATTEMPTS} attempts"
+            )
         async with self._connect_lock:
             if self._client is not None and self._client.is_connected:
                 return
