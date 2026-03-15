@@ -6,8 +6,11 @@ import pytest
 # Stub voluptuous so config_flow.py can be imported without the package
 _vol_stub = MagicMock()
 _vol_stub.Schema = lambda x: x
-_vol_stub.Required = lambda x: x
+_vol_stub.Required = lambda x, **kwargs: x  # Accept and ignore keyword arguments like 'default'
 _vol_stub.In = lambda x: x
+_vol_stub.All = lambda *args: args[0] if args else None  # Return first argument
+_vol_stub.Coerce = lambda x: x  # Identity function
+_vol_stub.Range = lambda **kwargs: lambda x: x  # Return identity function
 sys.modules.setdefault("voluptuous", _vol_stub)
 
 # Stub out bleak and bleak_retry_connector so api.py can be imported without
@@ -62,7 +65,56 @@ class _ConfigFlow:
         super().__init_subclass__(**kwargs)
         cls._domain = domain
 
+    def async_show_form(self, *, step_id, data_schema=None, errors=None, description_placeholders=None):
+        """Show a form to the user."""
+        return {
+            "type": _FlowResultType.FORM,
+            "step_id": step_id,
+            "data_schema": data_schema,
+            "errors": errors or {},
+            "description_placeholders": description_placeholders or {},
+        }
+
+    def async_create_entry(self, *, title, data):
+        """Create a config entry."""
+        return {
+            "type": _FlowResultType.CREATE_ENTRY,
+            "title": title,
+            "data": data,
+        }
+
+    def async_abort(self, *, reason):
+        """Abort the config flow."""
+        return {
+            "type": _FlowResultType.ABORT,
+            "reason": reason,
+        }
+
+class _OptionsFlow:
+    """Minimal OptionsFlow base."""
+    def __init__(self, config_entry):
+        self.config_entry = config_entry
+
+    def async_show_form(self, *, step_id, data_schema=None, errors=None, description_placeholders=None):
+        """Show a form to the user."""
+        return {
+            "type": _FlowResultType.FORM,
+            "step_id": step_id,
+            "data_schema": data_schema,
+            "errors": errors or {},
+            "description_placeholders": description_placeholders or {},
+        }
+
+    def async_create_entry(self, *, title, data):
+        """Create a config entry."""
+        return {
+            "type": _FlowResultType.CREATE_ENTRY,
+            "title": title,
+            "data": data,
+        }
+
 _ha_config_entries_stub.ConfigFlow = _ConfigFlow
+_ha_config_entries_stub.OptionsFlow = _OptionsFlow
 _ha_config_entries_stub.SOURCE_BLUETOOTH = "bluetooth"
 _ha_config_entries_stub.SOURCE_USER = "user"
 
