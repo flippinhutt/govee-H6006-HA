@@ -13,6 +13,7 @@ from .const import (
     DEFAULT_CONNECTION_TIMEOUT,
     DEFAULT_MAX_RETRIES,
     DEFAULT_POLLING_INTERVAL,
+    DEFAULT_SUPPRESSION_WINDOW,
     DOMAIN,
 )
 
@@ -40,12 +41,14 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
 
         connection_timeout = config_entry.options.get("connection_timeout", DEFAULT_CONNECTION_TIMEOUT)
         max_retries = config_entry.options.get("max_retries", DEFAULT_MAX_RETRIES)
+        suppression_window = config_entry.options.get("suppression_window", DEFAULT_SUPPRESSION_WINDOW)
 
         self._api = GoveeAPI(
             ble_device,
             self._async_push_data,
             timeout=connection_timeout,
             max_attempts=max_retries,
+            suppression_window=suppression_window,
         )
 
         polling_interval = config_entry.options.get("polling_interval", DEFAULT_POLLING_INTERVAL)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+import time
 from bleak import BleakClient, BLEDevice
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak_retry_connector import establish_connection
@@ -32,11 +33,14 @@ class GoveeAPI:
         update_callback,
         timeout: float = 15.0,
         max_attempts: int = 5,
+        suppression_window: int = 500,
     ) -> None:
         self._ble_device = ble_device
         self._update_callback = update_callback
         self._timeout = timeout
         self._max_attempts = max_attempts
+        self._suppression_window = suppression_window
+        self._last_callback_time = 0.0
         self._client: BleakClient | None = None
         self.state: bool | None = None
         self.brightness: int | None = None
@@ -93,7 +97,13 @@ class GoveeAPI:
             else:
                 self.color_rgb = (frame[3], frame[4], frame[5])
                 self.color_temp = None  # clear stale color temp
-        await self._update_callback()
+
+        # Throttle callbacks based on suppression window
+        current_time = time.time() * 1000  # convert to milliseconds
+        if current_time - self._last_callback_time >= self._suppression_window:
+            await self._update_callback()
+            self._last_callback_time = current_time
+        # else: notification suppressed (too soon after last callback)
 
     async def poll_state(self) -> None:
         """Request current power, brightness, and color state from the device."""
