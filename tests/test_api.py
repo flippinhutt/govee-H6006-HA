@@ -334,3 +334,152 @@ async def test_set_color_temp_write_failure(api, mock_bleak_client):
             await api.set_color_temp(3500)
 
         assert "Write failed" in str(exc_info.value)
+
+
+# ========================================
+# Notification Error Handling
+# ========================================
+
+@pytest.mark.asyncio
+async def test_notification_bad_checksum(api, update_callback):
+    """Test that notifications with bad checksums are discarded."""
+    # Clear suppression to ensure notification would normally be processed
+    api._suppress_update_until = 0.0
+
+    # Create a notification with intentionally bad checksum
+    bad_packet = bytearray([0xAA, 0x01, 0x01] + [0] * 16)
+    bad_packet.append(0xFF)  # Wrong checksum (should be XOR of first 19 bytes)
+
+    await api._handle_notification(None, bad_packet)
+
+    # State should not be updated
+    assert api.state is None
+    # Callback should not be called
+    update_callback.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_notification_too_short(api, update_callback):
+    """Test that notifications shorter than 20 bytes are discarded."""
+    # Clear suppression
+    api._suppress_update_until = 0.0
+
+    # Create a packet that's too short (only 15 bytes)
+    short_packet = bytearray([0xAA, 0x01, 0x01] + [0] * 12)
+
+    await api._handle_notification(None, short_packet)
+
+    # State should not be updated
+    assert api.state is None
+    # Callback should not be called
+    update_callback.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_notification_wrong_head(api, update_callback):
+    """Test that notifications with wrong head byte are discarded."""
+    # Clear suppression
+    api._suppress_update_until = 0.0
+
+    # Create a valid packet but with wrong head (0x33 instead of 0xAA)
+    wrong_head_packet = bytearray([0x33, 0x01, 0x01] + [0] * 16)
+    checksum = 0
+    for b in wrong_head_packet[:19]:
+        checksum ^= b
+    wrong_head_packet.append(checksum & 0xFF)
+
+    await api._handle_notification(None, wrong_head_packet)
+
+    # State should not be updated
+    assert api.state is None
+    # Callback should not be called
+    update_callback.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_notification_empty_packet(api, update_callback):
+    """Test that empty notifications are handled gracefully."""
+    # Clear suppression
+    api._suppress_update_until = 0.0
+
+    empty_packet = bytearray()
+
+    await api._handle_notification(None, empty_packet)
+
+    # State should not be updated
+    assert api.state is None
+    # Callback should not be called
+    update_callback.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_notification_exactly_19_bytes(api, update_callback):
+    """Test that notifications with exactly 19 bytes (missing checksum) are discarded."""
+    # Clear suppression
+    api._suppress_update_until = 0.0
+
+    # Create a packet that's exactly 19 bytes (missing the checksum byte)
+    incomplete_packet = bytearray([0xAA, 0x01, 0x01] + [0] * 16)
+
+    await api._handle_notification(None, incomplete_packet)
+
+    # State should not be updated
+    assert api.state is None
+    # Callback should not be called
+    update_callback.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_notification_unknown_command(api, update_callback):
+    """Test that notifications with unknown command codes are handled."""
+    # Clear suppression
+    api._suppress_update_until = 0.0
+
+    # Create a valid packet with unknown command (0x99)
+    unknown_cmd_packet = bytearray([0xAA, 0x99, 0x01] + [0] * 16)
+    checksum = 0
+    for b in unknown_cmd_packet[:19]:
+        checksum ^= b
+    unknown_cmd_packet.append(checksum & 0xFF)
+
+    await api._handle_notification(None, unknown_cmd_packet)
+
+    # Callback should still be called (packet is valid, just unknown command)
+    update_callback.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_notification_all_zeros(api, update_callback):
+    """Test that a packet of all zeros is handled correctly."""
+    # Clear suppression
+    api._suppress_update_until = 0.0
+
+    # Create a packet of all zeros (checksum will also be 0)
+    zero_packet = bytearray([0] * 20)
+
+    await api._handle_notification(None, zero_packet)
+
+    # Wrong head (0 instead of 0xAA), so should be discarded
+    assert api.state is None
+    update_callback.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_notification_checksum_off_by_one(api, update_callback):
+    """Test that a checksum off by one is detected."""
+    # Clear suppression
+    api._suppress_update_until = 0.0
+
+    # Create a valid notification frame
+    power_on_packet = bytearray([0xAA, 0x01, 0x01] + [0] * 16)
+    checksum = 0
+    for b in power_on_packet[:19]:
+        checksum ^= b
+    # Add checksum but make it off by one
+    power_on_packet.append((checksum + 1) & 0xFF)
+
+    await api._handle_notification(None, power_on_packet)
+
+    # State should not be updated due to bad checksum
+    assert api.state is None
+    update_callback.assert_not_called()
