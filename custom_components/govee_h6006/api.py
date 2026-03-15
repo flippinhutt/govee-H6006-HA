@@ -38,9 +38,20 @@ def _build_query(cmd: int) -> bytes:
 
 
 class GoveeAPI:
-    def __init__(self, ble_device: BLEDevice, update_callback) -> None:
+    def __init__(
+        self,
+        ble_device: BLEDevice,
+        update_callback,
+        timeout: float = 15.0,
+        max_attempts: int = 5,
+        suppression_window: int = 500,
+    ) -> None:
         self._ble_device = ble_device
         self._update_callback = update_callback
+        self._timeout = timeout
+        self._max_attempts = max_attempts
+        self._suppression_window = suppression_window
+        self._last_callback_time = 0.0
         self._client: BleakClient | None = None
         self._connect_lock = asyncio.Lock()
         self._suppress_update_until = 0.0  # Suppress notifications after command for 500ms
@@ -227,7 +238,7 @@ class GoveeAPI:
             if self._client is not None and self._client.is_connected:
                 return
             self._client = await establish_connection(
-                BleakClient, self._ble_device, self.address, timeout=15.0
+                BleakClient, self._ble_device, self.address, timeout=20.0
             )
             await self._client.start_notify(READ_CHARACTERISTIC_UUID, self._handle_notification)
             # Capture RSSI on successful connection
@@ -281,12 +292,15 @@ class GoveeAPI:
                     self.color_temp = None  # clear stale color temp
                     _LOGGER.debug(f"Notification: color_rgb={self.color_rgb}")
             else:
-                _LOGGER.debug(f"Notification: unknown command {cmd:02x}")
-                return
-        except (IndexError, ValueError) as e:
-            _LOGGER.warning(f"Failed to parse notification: {e}")
-            return
-        await self._update_callback()
+                self.color_rgb = (frame[3], frame[4], frame[5])
+                self.color_temp = None  # clear stale color temp
+
+        # Throttle callbacks based on suppression window
+        current_time = time.time() * 1000  # convert to milliseconds
+        if current_time - self._last_callback_time >= self._suppression_window:
+            await self._update_callback()
+            self._last_callback_time = current_time
+        # else: notification suppressed (too soon after last callback)
 
     async def poll_state(self) -> None:
         """Request current power, brightness, and color state from the device."""

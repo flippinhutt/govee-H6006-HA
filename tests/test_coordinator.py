@@ -1,7 +1,9 @@
 import pytest
+from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from homeassistant.core import HomeAssistant
 from custom_components.govee_h6006.coordinator import GoveeCoordinator
+from custom_components.govee_h6006.const import DEFAULT_POLLING_INTERVAL
 
 
 @pytest.fixture
@@ -11,6 +13,7 @@ def config_entry():
         "address": "AA:BB:CC:DD:EE:FF",
         "name": "ihoment_H6006",
     }
+    entry.options = {}
     entry.unique_id = "AA:BB:CC:DD:EE:FF"
     return entry
 
@@ -82,3 +85,31 @@ async def test_coordinator_set_power_delegates_to_api(mock_hass, config_entry, m
         coordinator = GoveeCoordinator(mock_hass, config_entry)
         await coordinator.set_power(True)
         api_instance.set_power.assert_called_once_with(True)
+
+
+def test_coordinator_uses_polling_interval_from_options(mock_hass, config_entry, mock_ble_device):
+    """Test that coordinator uses polling interval from config_entry.options."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI:
+        MockAPI.return_value = AsyncMock()
+
+        # Test with custom polling interval
+        config_entry.options = {"polling_interval": 60}
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+        assert coordinator.update_interval == timedelta(seconds=60)
+
+
+def test_coordinator_uses_default_polling_interval_when_not_in_options(mock_hass, config_entry, mock_ble_device):
+    """Test that coordinator uses default polling interval when not specified in options."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI:
+        MockAPI.return_value = AsyncMock()
+
+        # Test with no options
+        config_entry.options = {}
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+        assert coordinator.update_interval == timedelta(seconds=DEFAULT_POLLING_INTERVAL)

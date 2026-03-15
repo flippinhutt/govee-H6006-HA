@@ -16,5 +16,22 @@
       "no_devices_found": "No Govee H6006 devices found nearby.",
       "already_configured": "Device is already configured."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure Govee H6006",
+        "description": "Adjust connection and polling parameters for your environment.",
+        "data": {
+          "polling_interval": "Polling interval (seconds)",
+          "connection_timeout": "Connection timeout (seconds)",
+          "suppression_window": "Notification suppression window (milliseconds)",
+          "max_retries": "Maximum reconnection attempts"
+        }
+      }
+    },
+    "error": {
+      "out_of_range": "Value is out of the allowed range"
+    }
   }
 }
