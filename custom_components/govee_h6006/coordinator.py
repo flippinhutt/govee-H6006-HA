@@ -39,7 +39,7 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
             hass,
             _LOGGER,
             name=f"{DOMAIN} ({self.device_address})",
-            update_interval=timedelta(seconds=15),
+            update_interval=timedelta(seconds=30),
         )
 
     @property
@@ -81,13 +81,27 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
         return self._snapshot()
 
     async def set_power(self, on: bool) -> None:
+        # Optimistic update for instant UI response
+        self._api.state = on
+        self.async_set_updated_data(self._snapshot())
         await self._api.set_power(on)
 
     async def set_brightness(self, value: int) -> None:
+        # Optimistic update for instant UI response
+        self._api.brightness = value
+        self.async_set_updated_data(self._snapshot())
         await self._api.set_brightness(value)
 
     async def set_color_rgb(self, r: int, g: int, b: int) -> None:
+        # Optimistic update for instant UI response
+        self._api.color_rgb = (r, g, b)
+        self._api.color_temp = None  # clear color temp when RGB is set
+        self.async_set_updated_data(self._snapshot())
         await self._api.set_color_rgb(r, g, b)
 
     async def set_color_temp(self, kelvin: int) -> None:
+        # Optimistic update for instant UI response
+        self._api.color_temp = kelvin
+        self._api.color_rgb = None  # clear RGB when color temp is set
+        self.async_set_updated_data(self._snapshot())
         await self._api.set_color_temp(kelvin)

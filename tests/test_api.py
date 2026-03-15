@@ -88,7 +88,8 @@ async def test_notification_updates_state(api, mock_bleak_client, update_callbac
                return_value=mock_bleak_client):
         await api.set_power(True)
 
-    # Simulate a power-state notification from device
+    # Simulate a power-state notification from device (clear suppression to simulate real timing)
+    api._suppress_update_until = 0.0
     power_on_response = bytearray(GoveePacket.power(True))
     power_on_response[0] = 0xAA  # REQUEST head = device response
     # Recalculate checksum
