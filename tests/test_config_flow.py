@@ -1,8 +1,9 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 from homeassistant import config_entries
-from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
+from homeassistant.data_entry_flow import FlowResultType
 
 from custom_components.govee_h6006.const import DOMAIN
 

@@ -1,13 +1,14 @@
-import pytest
 import asyncio
 import time
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, call, patch
+
+import pytest
+
 from custom_components.govee_h6006.api import GoveeAPI
 from custom_components.govee_h6006.const import (
     MAX_RECONNECT_ATTEMPTS,
     RECONNECT_BACKOFF_BASE,
     RECONNECT_BACKOFF_MAX,
-    RECONNECT_COOLDOWN_SECONDS,
 )
 
 

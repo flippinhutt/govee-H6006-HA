@@ -1,6 +1,8 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from homeassistant.core import HomeAssistant
+
 from custom_components.govee_h6006.coordinator import GoveeCoordinator
 
 

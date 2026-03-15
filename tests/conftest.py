@@ -1,6 +1,7 @@
-import sys
 import enum
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 
 # Stub voluptuous so config_flow.py can be imported without the package
@@ -44,7 +45,7 @@ class _DataUpdateCoordinator:
         pass
 
 
-class _FlowResultType(str, enum.Enum):
+class _FlowResultType(enum.StrEnum):
     FORM = "form"
     CREATE_ENTRY = "create_entry"
     ABORT = "abort"
@@ -82,7 +83,7 @@ _ha_passive_coordinator_stub = MagicMock()
 _ha_passive_coordinator_stub.PassiveBluetoothDataUpdateCoordinator = MagicMock
 
 # Stub homeassistant.components.light with ColorMode and LightEntity
-class _ColorMode(str, enum.Enum):
+class _ColorMode(enum.StrEnum):
     RGB = "rgb"
     COLOR_TEMP = "color_temp"
     ONOFF = "onoff"
@@ -97,7 +98,7 @@ _ha_light_stub.ColorMode = _ColorMode
 _ha_light_stub.LightEntity = _LightEntity
 
 # Stub homeassistant.const with Platform
-class _Platform(str, enum.Enum):
+class _Platform(enum.StrEnum):
     LIGHT = "light"
 
 _ha_const_stub = MagicMock()
@@ -126,7 +127,9 @@ sys.modules["homeassistant.data_entry_flow"] = _ha_data_entry_flow_stub
 sys.modules["homeassistant.const"] = _ha_const_stub
 sys.modules["homeassistant.components"] = MagicMock()
 sys.modules["homeassistant.components.bluetooth"] = _ha_bluetooth_stub
-sys.modules["homeassistant.components.bluetooth.passive_update_coordinator"] = _ha_passive_coordinator_stub
+sys.modules[
+    "homeassistant.components.bluetooth.passive_update_coordinator"
+] = _ha_passive_coordinator_stub
 sys.modules["homeassistant.components.light"] = _ha_light_stub
 sys.modules["homeassistant.helpers"] = MagicMock()
 sys.modules["homeassistant.helpers.update_coordinator"] = _ha_update_coordinator_stub

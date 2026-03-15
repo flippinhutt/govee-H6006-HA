@@ -1,5 +1,7 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
+
 from custom_components.govee_h6006.api import GoveeAPI
 from custom_components.govee_h6006.api_utils import GoveePacket
 
@@ -167,7 +169,7 @@ async def test_poll_recovers_from_mid_session_disconnect(api, mock_bleak_client)
 async def test_reconnect_resets_state_on_success(api, mock_bleak_client):
     """Test that successful reconnection resets reconnect counter."""
     with patch("custom_components.govee_h6006.api.establish_connection",
-               return_value=mock_bleak_client) as mock_connect, \
+               return_value=mock_bleak_client), \
          patch("asyncio.sleep"):
         # Simulate a previous failed reconnection attempt
         api._reconnect_attempts = 2
