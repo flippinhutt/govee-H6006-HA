@@ -56,6 +56,7 @@ class GoveeAPI:
         # Diagnostic metrics
         self.rssi: int | None = None
         self._connection_attempts: deque[bool] = deque(maxlen=10)  # Track last 10 attempts (True=success, False=failure)
+        self.last_poll_time: float | None = None  # Timestamp of last successful poll
 
     @property
     def address(self) -> str:
@@ -95,6 +96,21 @@ class GoveeAPI:
             return None
         successful = sum(1 for attempt in self._connection_attempts if attempt)
         return round((successful / len(self._connection_attempts)) * 100, 1)
+
+    @property
+    def connection_state(self) -> str:
+        """Return human-readable connection state for diagnostics."""
+        if self._client is not None and self._client.is_connected:
+            return "connected"
+        if self._is_reconnecting:
+            return f"reconnecting (attempt {self._reconnect_attempts + 1}/{MAX_RECONNECT_ATTEMPTS})"
+        if self._reconnect_attempts >= MAX_RECONNECT_ATTEMPTS:
+            if self._last_disconnect_time is not None:
+                cooldown_remaining = RECONNECT_COOLDOWN_SECONDS - (time.time() - self._last_disconnect_time)
+                if cooldown_remaining > 0:
+                    return f"unavailable (cooldown {int(cooldown_remaining)}s remaining)"
+            return "unavailable (max attempts exceeded)"
+        return "disconnected"
 
     def update_device(self, ble_device: BLEDevice) -> None:
         """Refresh the BLE device handle (call before connecting if handle may be stale)."""
@@ -278,6 +294,8 @@ class GoveeAPI:
             await self._client.write_gatt_char(
                 WRITE_CHARACTERISTIC_UUID, _build_query(cmd), False
             )
+        # Record timestamp of successful poll
+        self.last_poll_time = time.time()
 
     async def set_power(self, on: bool) -> None:
         _LOGGER.debug(f"Sending power command: on={on}")
