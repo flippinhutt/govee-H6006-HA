@@ -1,6 +1,7 @@
 # Govee H6006 BLE Integration for Home Assistant 🏠
 
 [![hacs](https://img.shields.io/badge/HACS-Integration-blue.svg?style=for-the-badge)](https://github.com/hacs/integration)
+[![CI](https://img.shields.io/github/actions/workflow/status/flippinhutt/govee/ci.yml?style=for-the-badge&label=CI)](https://github.com/flippinhutt/govee/actions/workflows/ci.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/flippinhutt/govee?sort=semver&style=for-the-badge&color=green)](https://github.com/flippinhutt/govee/releases/)
 [![GitHub Release Date](https://img.shields.io/github/release-date/flippinhutt/govee?style=for-the-badge&color=green)](https://github.com/flippinhutt/govee/releases/)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/flippinhutt/govee?style=for-the-badge)
@@ -74,6 +75,75 @@ Then restart Home Assistant.
 6. Select the device you want to add and click **Submit**
 
 That's it! Your lights will appear as standard Home Assistant light entities.
+
+## Multi-Device Support
+
+This integration supports controlling multiple Govee H6006 devices simultaneously. You can add as many devices as your Bluetooth adapter can handle, and each will appear as a separate light entity in Home Assistant.
+
+### How to Add Multiple Devices
+
+Simply repeat the setup process for each device:
+1. Go to **Settings** → **Devices & Services**
+2. Click **+ Add Integration**
+3. Search for "Govee H6006 BLE" and select it
+4. Choose the next device from the discovered list
+
+Each device operates independently with its own connection and state tracking.
+
+### BLE Adapter Limitations
+
+**Important**: Bluetooth Low Energy (BLE) adapters have physical limitations that affect multi-device setups:
+
+#### Connection Limits
+- **Typical BLE adapters support 3-7 simultaneous connections**
+- The exact limit depends on your Bluetooth adapter chipset and driver
+- If you exceed your adapter's limit, devices may fail to connect or become unreliable
+- **Recommendation**: For more than 5 devices, consider using multiple Bluetooth adapters or ESPHome Bluetooth proxies
+
+#### Range and Interference
+- **BLE range**: ~10-30 feet (3-10 meters) in ideal conditions
+- **Signal degradation**: Each wall, floor, or obstacle reduces range significantly
+- **Interference sources**: 2.4GHz Wi-Fi, USB 3.0 ports, microwaves, other Bluetooth devices
+- **Multi-device impact**: With multiple devices spread across different rooms, some may be out of range
+
+#### Solutions for Large Deployments
+
+If you have many devices or a large home:
+
+**Option 1: Multiple Bluetooth Adapters**
+- Add USB Bluetooth adapters to extend coverage
+- Each adapter can handle 3-7 devices
+- Place adapters in different areas of your home for better range
+- Use USB extension cables to position adapters optimally
+
+**Option 2: ESPHome Bluetooth Proxies**
+- Deploy [ESPHome Bluetooth proxies](https://esphome.io/components/bluetooth_proxy.html) using ESP32 devices
+- Each ESP32 acts as a Bluetooth bridge to extend range
+- More cost-effective than multiple USB adapters for large homes
+- Provides better coverage across multiple rooms
+
+**Option 3: Dedicated Bluetooth Server**
+- Run Home Assistant on a device with a better Bluetooth adapter (e.g., Raspberry Pi with external adapter)
+- Use a powered USB hub with USB extension cables to position multiple adapters
+
+### Performance Tips
+
+- **Stagger device polling**: The integration polls each device every 30 seconds. With many devices, this spreads naturally over time.
+- **Monitor connection count**: Enable debug logging to see how many concurrent connections your adapter maintains.
+- **Group devices by location**: If you have devices in different areas, consider which adapter/proxy can reach them reliably.
+
+### Check Your Current Limits
+
+To see how many BLE devices your adapter currently supports:
+
+```bash
+# On your Home Assistant server
+bluetoothctl
+# Then run:
+show
+```
+
+Look for "Connected" devices. If you're approaching 5-7 active connections and experiencing issues, you've likely hit your adapter's limit.
 
 ## Troubleshooting
 

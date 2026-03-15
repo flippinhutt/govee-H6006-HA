@@ -1,6 +1,8 @@
 from __future__ import annotations
+
+import logging
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 
 from homeassistant.components import bluetooth
@@ -10,7 +12,13 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import GoveeAPI
-from .const import DOMAIN
+from .const import (
+    DEFAULT_CONNECTION_TIMEOUT,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_POLLING_INTERVAL,
+    DEFAULT_SUPPRESSION_WINDOW,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,9 +29,14 @@ class GoveeData:
     brightness: int | None = None
     color_rgb: tuple[int, int, int] | None = None
     color_temp: int | None = None
+    rssi: int | None = None
+    connection_success_rate: float | None = None
+    last_poll_time: datetime | None = None
+    connection_state: str = "disconnected"
+    total_reconnections: int = 0
 
 
-class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
+class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
     def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry) -> None:
         self.device_address = config_entry.data["address"]
         self.device_name = config_entry.data["name"]
@@ -34,13 +47,25 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
         if ble_device is None:
             raise RuntimeError(f"BLE device {self.device_address} not found")
 
-        self._api = GoveeAPI(ble_device, self._async_push_data)
+        connection_timeout = config_entry.options.get("connection_timeout", DEFAULT_CONNECTION_TIMEOUT)
+        max_retries = config_entry.options.get("max_retries", DEFAULT_MAX_RETRIES)
+        suppression_window = config_entry.options.get("suppression_window", DEFAULT_SUPPRESSION_WINDOW)
+
+        self._api = GoveeAPI(
+            ble_device,
+            self._async_push_data,
+            timeout=connection_timeout,
+            max_attempts=max_retries,
+            suppression_window=suppression_window,
+        )
+
+        polling_interval = config_entry.options.get("polling_interval", DEFAULT_POLLING_INTERVAL)
 
         super().__init__(
             hass,
             _LOGGER,
             name=f"{DOMAIN} ({self.device_address})",
-            update_interval=timedelta(seconds=30),
+            update_interval=timedelta(seconds=polling_interval),
         )
 
         # Initialize data with current API state
@@ -57,6 +82,11 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
             brightness=self._api.brightness,
             color_rgb=self._api.color_rgb,
             color_temp=self._api.color_temp,
+            rssi=self._api.rssi,
+            connection_success_rate=self._api.connection_success_rate,
+            last_poll_time=datetime.fromtimestamp(self._api.last_poll_time) if self._api.last_poll_time else None,
+            connection_state=self._api.connection_state,
+            total_reconnections=self._api.total_reconnections,
         )
 
     async def _async_push_data(self) -> None:

@@ -1,8 +1,10 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 from homeassistant.components.light import ColorMode
-from custom_components.govee_h6006.light import GoveeLight
+
 from custom_components.govee_h6006.coordinator import GoveeData
+from custom_components.govee_h6006.light import GoveeLight
 
 
 def make_coordinator(state=True, brightness=255, color_rgb=None, color_temp=None):
