@@ -128,7 +128,7 @@ async def test_api_uses_default_timeout_and_retries(mock_ble_device, update_call
         # Verify default timeout and max_attempts are used
         call_kwargs = mock_connect.call_args[1]
         assert call_kwargs["max_attempts"] == 5
-        assert call_kwargs["ble_device_callback_timeout"] == 15.0
+        assert call_kwargs["ble_device_callback_timeout"] == 20.0
 
 
 @pytest.mark.asyncio
@@ -159,10 +159,10 @@ async def test_connection_timeout_is_20_seconds(api, mock_bleak_client):
                return_value=mock_bleak_client) as mock_connect:
         await api.set_power(True)
 
-        # Verify establish_connection was called with the default timeout (15.0)
+        # Verify establish_connection was called with the default timeout (20.0)
         call_args = mock_connect.call_args
         assert 'ble_device_callback_timeout' in call_args.kwargs
-        assert call_args.kwargs['ble_device_callback_timeout'] == 15.0
+        assert call_args.kwargs['ble_device_callback_timeout'] == 20.0
 
 
 @pytest.mark.asyncio

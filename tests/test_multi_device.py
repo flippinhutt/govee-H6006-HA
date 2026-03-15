@@ -283,7 +283,8 @@ async def test_command_to_one_coordinator_does_not_affect_others(
 
         # Verify coordinator 1 state changed, but coordinator 2 did not
         assert coordinator_1.data.state is False
-        assert coordinator_2.data is None  # Not yet updated
+        assert coordinator_2.data.state is False  # Still at initial value
+        assert coordinator_2.data.brightness == 200  # Unchanged
 
         # Send brightness command to coordinator 2
         await coordinator_2.set_brightness(150)

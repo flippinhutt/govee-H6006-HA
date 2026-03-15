@@ -198,6 +198,13 @@ _ha_update_coordinator_stub.CoordinatorEntity = _CoordinatorEntity
 # Stub entity_platform
 _ha_entity_platform_stub = MagicMock()
 
+# Stub homeassistant.exceptions with HomeAssistantError
+class _HomeAssistantError(Exception):
+    """Stub for HomeAssistantError."""
+
+_ha_exceptions_stub = MagicMock()
+_ha_exceptions_stub.HomeAssistantError = _HomeAssistantError
+
 sys.modules["homeassistant"] = MagicMock()
 sys.modules["homeassistant.core"] = _ha_core_stub
 sys.modules["homeassistant.config_entries"] = _ha_config_entries_stub

@@ -12,6 +12,7 @@ def config_entry():
         "address": "AA:BB:CC:DD:EE:FF",
         "name": "ihoment_H6006",
     }
+    entry.options = {}
     entry.unique_id = "AA:BB:CC:DD:EE:FF"
     return entry
 
