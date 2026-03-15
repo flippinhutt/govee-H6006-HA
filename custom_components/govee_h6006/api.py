@@ -193,7 +193,7 @@ class GoveeAPI:
             if self._client is not None and self._client.is_connected:
                 return
             self._client = await establish_connection(
-                BleakClient, self._ble_device, self.address, timeout=15.0
+                BleakClient, self._ble_device, self.address, timeout=20.0
             )
             await self._client.start_notify(READ_CHARACTERISTIC_UUID, self._handle_notification)
 
