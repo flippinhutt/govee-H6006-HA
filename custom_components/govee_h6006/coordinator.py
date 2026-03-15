@@ -58,6 +58,11 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
             brightness=self._api.brightness,
             color_rgb=self._api.color_rgb,
             color_temp=self._api.color_temp,
+            rssi=self._api.rssi,
+            connection_success_rate=self._api.connection_success_rate,
+            last_poll_time=datetime.fromtimestamp(self._api.last_poll_time) if self._api.last_poll_time else None,
+            connection_state=self._api.connection_state,
+            total_reconnections=self._api.total_reconnections,
         )
 
     async def _async_push_data(self) -> None:
