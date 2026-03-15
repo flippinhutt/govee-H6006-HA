@@ -82,10 +82,20 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
         return self._snapshot()
 
     async def set_power(self, on: bool) -> None:
+        # Save previous state for rollback on failure
+        prev_state = self._api.state
+
         # Optimistic update for instant UI response
         self._api.state = on
         self.async_set_updated_data(self._snapshot())
-        await self._api.set_power(on)
+
+        try:
+            await self._api.set_power(on)
+        except Exception as err:
+            # Rollback to previous state on failure
+            self._api.state = prev_state
+            self.async_set_updated_data(self._snapshot())
+            raise HomeAssistantError(f"Failed to set power state: {err}") from err
 
     async def set_brightness(self, value: int) -> None:
         # Optimistic update for instant UI response
