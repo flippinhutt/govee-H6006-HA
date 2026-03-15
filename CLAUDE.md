@@ -22,7 +22,18 @@ pytest -x
 
 # Run tests matching a keyword
 pytest -k "test_brightness"
+
+# Generate coverage report (terminal)
+pytest --cov=custom_components.govee_h6006 --cov-report=term-missing
+
+# Generate HTML coverage report (opens in browser)
+pytest --cov=custom_components.govee_h6006 --cov-report=html && open htmlcov/index.html
+
+# Enforce minimum coverage threshold (fails if below 85%)
+pytest --cov=custom_components.govee_h6006 --cov-report=term-missing --cov-fail-under=85
 ```
+
+**Coverage target:** 90%+ (current: 92.74% with 105 tests). Minimum enforced threshold: 85%.
 
 No build step. No linting configured. No requirements.txt — dependencies are declared in `manifest.json` (`bleak-retry-connector>=3.0.0`). Tests stub out `bleak`, `bleak_retry_connector`, and all `homeassistant` modules via `tests/conftest.py` so no HA installation is needed to run tests.
 
@@ -109,4 +120,4 @@ Built a custom HACS integration (govee_h6006) for the Govee H6006 bulb using loc
 
   Test Coverage
 
-  36 tests across all modules, all passing.
+  105 tests across all modules, all passing. Coverage: 92.74% (exceeds 90% target).

@@ -4,6 +4,14 @@ All notable changes to the Govee H6006 Home Assistant integration are documented
 
 ## [Unreleased]
 
+### Added
+- **Test coverage improvements** — Increased test coverage from 80% to 92.74% with comprehensive error path tests, edge case handling, and config flow validation
+- **Coverage reporting** — Added pytest-cov configuration with HTML and terminal reports, enforcing 85% minimum coverage threshold
+- **Error path tests** — Added comprehensive tests for BLE write failures, disconnections, bad checksums, and malformed notification packets
+- **Edge case tests** — Added tests for color temperature boundaries (2700K, 6500K), RGB clamping, and out-of-range values
+- **Config flow error tests** — Added tests for duplicate entries, invalid addresses, and malformed service info
+- **Coordinator error tests** — Added tests for UpdateFailed scenarios, device unavailability, and optimistic update handling
+
 ### Fixed
 - **Optimistic updates for instant UI responsiveness** — Commands sent from Home Assistant (power, brightness, color) now update the local coordinator state immediately
 - **State reversion bug** — Device no longer reverts to previous values after changing state. Fixed by suppressing notifications for 500ms after sending commands, preventing the device's echoed old state from overwriting optimistic updates
