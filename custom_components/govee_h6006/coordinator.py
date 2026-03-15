@@ -23,7 +23,7 @@ class GoveeData:
     color_temp: int | None = None
 
 
-class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
+class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
     def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry) -> None:
         self.device_address = config_entry.data["address"]
         self.device_name = config_entry.data["name"]
