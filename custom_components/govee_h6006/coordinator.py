@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 
 from homeassistant.components import bluetooth
@@ -20,6 +20,11 @@ class GoveeData:
     brightness: int | None = None
     color_rgb: tuple[int, int, int] | None = None
     color_temp: int | None = None
+    rssi: int | None = None
+    connection_success_rate: float | None = None
+    last_poll_time: datetime | None = None
+    connection_state: str = "disconnected"
+    total_reconnections: int = 0
 
 
 class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
