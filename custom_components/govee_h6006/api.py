@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, cast
 
 from bleak import BleakClient, BLEDevice
 from bleak.backends.characteristic import BleakGATTCharacteristic
@@ -58,7 +58,7 @@ class GoveeAPI:
 
     @property
     def address(self) -> str:
-        return self._ble_device.address
+        return cast(str, self._ble_device.address)
 
     @property
     def is_available(self) -> bool:
