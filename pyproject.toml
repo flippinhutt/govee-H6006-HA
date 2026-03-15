@@ -1,0 +1,50 @@
+[tool.ruff]
+# Set the maximum line length to 100 characters
+line-length = 100
+
+# Assume Python 3.11 (Home Assistant minimum version)
+target-version = "py311"
+
+# Enable specific rule sets
+select = [
+    "E",   # pycodestyle errors
+    "F",   # Pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort (import sorting)
+    "N",   # pep8-naming
+    "UP",  # pyupgrade (modern Python syntax)
+]
+
+# Directories and files to exclude from linting
+exclude = [
+    "__pycache__",
+    ".git",
+    ".venv",
+    "venv",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+# Allow unused variables when prefixed with underscore
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.isort]
+# Configure import sorting to match Home Assistant conventions
+known-first-party = ["custom_components.govee_h6006"]
+combine-as-imports = true
+
+[tool.ruff.lint.per-file-ignores]
+# Allow certain violations in test files
+"tests/**/*.py" = [
+    "N802",  # Function name should be lowercase (pytest fixtures often use mixed case)
+    "N806",  # Variable in function should be lowercase (test data can use uppercase)
+]
+# Allow certain violations in conftest.py (test stubs)
+"tests/conftest.py" = [
+    "F401",  # Imported but unused (stubs are imported to patch modules)
+    "F811",  # Redefinition of unused name (pytest fixtures)
+]
