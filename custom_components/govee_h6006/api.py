@@ -46,7 +46,7 @@ class GoveeAPI:
         self,
         ble_device: BLEDevice,
         update_callback,
-        timeout: float = 15.0,
+        timeout: float = 20.0,
         max_attempts: int = 5,
         suppression_window: int = 500,
     ) -> None:
