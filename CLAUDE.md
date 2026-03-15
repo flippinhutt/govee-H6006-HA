@@ -22,9 +22,60 @@ pytest -x
 
 # Run tests matching a keyword
 pytest -k "test_brightness"
+
+# Run linting
+ruff check .
+
+# Auto-fix linting issues
+ruff check --fix .
+
+# Format code
+ruff format .
+
+# Run type checking
+mypy custom_components/govee_h6006
+
+# Type check a specific file
+mypy custom_components/govee_h6006/api.py
 ```
 
-No build step. No linting configured. No requirements.txt — dependencies are declared in `manifest.json` (`bleak-retry-connector>=3.0.0`). Tests stub out `bleak`, `bleak_retry_connector`, and all `homeassistant` modules via `tests/conftest.py` so no HA installation is needed to run tests.
+No build step. No requirements.txt — dependencies are declared in `manifest.json` (`bleak-retry-connector>=3.0.0`). Tests stub out `bleak`, `bleak_retry_connector`, and all `homeassistant` modules via `tests/conftest.py` so no HA installation is needed to run tests.
+
+## Pre-commit Hooks (Optional)
+
+You can optionally set up pre-commit hooks to automatically run ruff and mypy before each commit:
+
+```bash
+# Install pre-commit
+pip install pre-commit
+
+# Install the git hooks
+pre-commit install
+
+# (Optional) Run against all files
+pre-commit run --all-files
+```
+
+Create `.pre-commit-config.yaml` in the repository root:
+
+```yaml
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        files: ^custom_components/govee_h6006/
+        args: [--ignore-missing-imports, --check-untyped-defs]
+```
+
+Once installed, ruff and mypy will run automatically on staged files before each commit. If issues are found, the commit will be blocked until they're resolved. You can bypass the hooks with `git commit --no-verify` if needed.
 
 ## Architecture
 

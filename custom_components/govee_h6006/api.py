@@ -1,23 +1,27 @@
 from __future__ import annotations
+
 import asyncio
 from collections import deque
 import logging
 import time
+from collections.abc import Awaitable, Callable
+from typing import cast
+
 from bleak import BleakClient, BLEDevice
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak_retry_connector import establish_connection
 
+from .api_utils import GoveePacket
 from .const import (
-    WRITE_CHARACTERISTIC_UUID,
-    READ_CHARACTERISTIC_UUID,
-    MIN_KELVIN,
     MAX_KELVIN,
     MAX_RECONNECT_ATTEMPTS,
+    MIN_KELVIN,
+    READ_CHARACTERISTIC_UUID,
     RECONNECT_BACKOFF_BASE,
     RECONNECT_BACKOFF_MAX,
     RECONNECT_COOLDOWN_SECONDS,
+    WRITE_CHARACTERISTIC_UUID,
 )
-from .api_utils import GoveePacket
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -72,7 +76,7 @@ class GoveeAPI:
 
     @property
     def address(self) -> str:
-        return self._ble_device.address
+        return cast(str, self._ble_device.address)
 
     @property
     def is_available(self) -> bool:
@@ -88,7 +92,7 @@ class GoveeAPI:
                 cooldown_elapsed = time.time() - self._last_disconnect_time
                 if cooldown_elapsed >= RECONNECT_COOLDOWN_SECONDS:
                     _LOGGER.info(
-                        "Cooldown period (%ds) elapsed for %s, resetting reconnection counter and retrying",
+                        "Cooldown period (%ds) elapsed for %s, resetting attempts and retrying",
                         RECONNECT_COOLDOWN_SECONDS,
                         self.address
                     )
@@ -246,6 +250,7 @@ class GoveeAPI:
 
     async def _write(self, packet: bytes) -> None:
         await self._ensure_connected()
+        assert self._client is not None  # _ensure_connected raises if connection fails
         # Suppress state notifications for 500ms to prevent stale device state
         # from overwriting optimistic updates
         self._suppress_update_until = time.time() + 0.5
@@ -307,6 +312,7 @@ class GoveeAPI:
     async def poll_state(self) -> None:
         """Request current power, brightness, and color state from the device."""
         await self._ensure_connected()
+        assert self._client is not None  # _ensure_connected raises if connection fails
         _LOGGER.debug("Polling device state")
         for cmd in (_POWER_CMD, _BRIGHTNESS_CMD, _COLOR_CMD):
             await self._client.write_gatt_char(

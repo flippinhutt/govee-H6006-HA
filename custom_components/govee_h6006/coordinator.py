@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import logging
@@ -33,7 +35,7 @@ class GoveeData:
     total_reconnections: int = 0
 
 
-class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
+class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
     def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry) -> None:
         self.device_address = config_entry.data["address"]
         self.device_name = config_entry.data["name"]
