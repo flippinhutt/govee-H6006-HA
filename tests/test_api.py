@@ -100,3 +100,29 @@ async def test_notification_updates_state(api, mock_bleak_client, update_callbac
     await api._handle_notification(None, power_on_response)
     assert api.state is True
     update_callback.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_api_passes_timeout_to_establish_connection(mock_ble_device, update_callback, mock_bleak_client):
+    api = GoveeAPI(mock_ble_device, update_callback, timeout=20.0, max_attempts=3)
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client) as mock_connect:
+        await api.set_power(True)
+        mock_connect.assert_called_once()
+        # Verify timeout and max_attempts are passed to establish_connection
+        call_kwargs = mock_connect.call_args[1]
+        assert call_kwargs["max_attempts"] == 3
+        assert call_kwargs["ble_device_callback_timeout"] == 20.0
+
+
+@pytest.mark.asyncio
+async def test_api_uses_default_timeout_and_retries(mock_ble_device, update_callback, mock_bleak_client):
+    api = GoveeAPI(mock_ble_device, update_callback)
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client) as mock_connect:
+        await api.set_power(True)
+        mock_connect.assert_called_once()
+        # Verify default timeout and max_attempts are used
+        call_kwargs = mock_connect.call_args[1]
+        assert call_kwargs["max_attempts"] == 5
+        assert call_kwargs["ble_device_callback_timeout"] == 15.0
