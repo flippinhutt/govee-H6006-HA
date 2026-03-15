@@ -5,14 +5,13 @@ All notable changes to the Govee H6006 Home Assistant integration are documented
 ## [Unreleased]
 
 ### Added
-- **Test coverage improvements** — Increased test coverage from 80% to 92.74% with comprehensive error path tests, edge case handling, and config flow validation
-- **Coverage reporting** — Added pytest-cov configuration with HTML and terminal reports, enforcing 85% minimum coverage threshold
-- **Error path tests** — Added comprehensive tests for BLE write failures, disconnections, bad checksums, and malformed notification packets
-- **Edge case tests** — Added tests for color temperature boundaries (2700K, 6500K), RGB clamping, and out-of-range values
-- **Config flow error tests** — Added tests for duplicate entries, invalid addresses, and malformed service info
-- **Coordinator error tests** — Added tests for UpdateFailed scenarios, device unavailability, and optimistic update handling
+- **Code linting with ruff** — Configured in pyproject.toml with rules for code quality, import sorting, and style consistency
+- **Type checking with mypy** — Strict type checking configured for core modules (api.py, api_utils.py, coordinator.py) to catch bugs at development time
+- **pyproject.toml** — Centralized configuration for ruff and mypy with project-specific rules
+- **Pre-commit hook support** — Optional local setup documented in CLAUDE.md for automatic linting and type checking before commits
 
 ### Fixed
+- **Connection timeout discrepancy** — Harmonized connection timeout values across documentation and code. CLAUDE.md now correctly documents the 20-second timeout used in api.py, ensuring consistency between implementation and documentation
 - **Optimistic updates for instant UI responsiveness** — Commands sent from Home Assistant (power, brightness, color) now update the local coordinator state immediately
 - **State reversion bug** — Device no longer reverts to previous values after changing state. Fixed by suppressing notifications for 500ms after sending commands, preventing the device's echoed old state from overwriting optimistic updates
 - **Color mode detection** — Improved detection of white mode vs RGB mode by checking RGB values (0xFF) instead of relying on potentially unreliable frame bytes

@@ -1,22 +1,27 @@
 from __future__ import annotations
+
 import asyncio
+from collections import deque
 import logging
 import time
+from collections.abc import Awaitable, Callable
+from typing import cast
+
 from bleak import BleakClient, BLEDevice
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak_retry_connector import establish_connection
 
+from .api_utils import GoveePacket
 from .const import (
-    WRITE_CHARACTERISTIC_UUID,
-    READ_CHARACTERISTIC_UUID,
-    MIN_KELVIN,
     MAX_KELVIN,
     MAX_RECONNECT_ATTEMPTS,
+    MIN_KELVIN,
+    READ_CHARACTERISTIC_UUID,
     RECONNECT_BACKOFF_BASE,
     RECONNECT_BACKOFF_MAX,
     RECONNECT_COOLDOWN_SECONDS,
+    WRITE_CHARACTERISTIC_UUID,
 )
-from .api_utils import GoveePacket
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,10 +68,15 @@ class GoveeAPI:
         self._last_disconnect_time: float | None = None
         self._is_reconnecting: bool = False
         self._connection_lock: asyncio.Lock = asyncio.Lock()
+        # Diagnostic metrics
+        self.rssi: int | None = None
+        self._connection_attempts: deque[bool] = deque(maxlen=10)  # Track last 10 attempts (True=success, False=failure)
+        self.last_poll_time: float | None = None  # Timestamp of last successful poll
+        self.total_reconnections: int = 0  # Total number of successful reconnections
 
     @property
     def address(self) -> str:
-        return self._ble_device.address
+        return cast(str, self._ble_device.address)
 
     @property
     def is_available(self) -> bool:
@@ -82,7 +92,7 @@ class GoveeAPI:
                 cooldown_elapsed = time.time() - self._last_disconnect_time
                 if cooldown_elapsed >= RECONNECT_COOLDOWN_SECONDS:
                     _LOGGER.info(
-                        "Cooldown period (%ds) elapsed for %s, resetting reconnection counter and retrying",
+                        "Cooldown period (%ds) elapsed for %s, resetting attempts and retrying",
                         RECONNECT_COOLDOWN_SECONDS,
                         self.address
                     )
@@ -94,6 +104,29 @@ class GoveeAPI:
 
         # Under max attempts, device is available
         return True
+
+    @property
+    def connection_success_rate(self) -> float | None:
+        """Return connection success rate as percentage (0-100) over last 10 attempts, or None if no attempts."""
+        if not self._connection_attempts:
+            return None
+        successful = sum(1 for attempt in self._connection_attempts if attempt)
+        return round((successful / len(self._connection_attempts)) * 100, 1)
+
+    @property
+    def connection_state(self) -> str:
+        """Return human-readable connection state for diagnostics."""
+        if self._client is not None and self._client.is_connected:
+            return "connected"
+        if self._is_reconnecting:
+            return f"reconnecting (attempt {self._reconnect_attempts + 1}/{MAX_RECONNECT_ATTEMPTS})"
+        if self._reconnect_attempts >= MAX_RECONNECT_ATTEMPTS:
+            if self._last_disconnect_time is not None:
+                cooldown_remaining = RECONNECT_COOLDOWN_SECONDS - (time.time() - self._last_disconnect_time)
+                if cooldown_remaining > 0:
+                    return f"unavailable (cooldown {int(cooldown_remaining)}s remaining)"
+            return "unavailable (max attempts exceeded)"
+        return "disconnected"
 
     def update_device(self, ble_device: BLEDevice) -> None:
         """Refresh the BLE device handle (call before connecting if handle may be stale)."""
@@ -159,19 +192,24 @@ class GoveeAPI:
                             READ_CHARACTERISTIC_UUID, self._handle_notification
                         )
 
-                        # Success! Reset state
+                        # Success! Reset state and capture RSSI
+                        self.rssi = self._ble_device.rssi
+                        self._connection_attempts.append(True)  # Record successful connection
                         _LOGGER.debug(
-                            "Reconnection successful for %s after %d attempts",
+                            "Reconnection successful for %s after %d attempts (RSSI: %s dBm)",
                             self.address,
-                            self._reconnect_attempts + 1
+                            self._reconnect_attempts + 1,
+                            self.rssi
                         )
                         self._reconnect_attempts = 0
                         self._last_disconnect_time = None
+                        self.total_reconnections += 1
                         return True
 
                     except Exception as err:
                         self._reconnect_attempts += 1
                         self._last_disconnect_time = time.time()
+                        self._connection_attempts.append(False)  # Record failed connection
                         _LOGGER.debug(
                             "Reconnection attempt %d/%d failed for %s: %s",
                             self._reconnect_attempts,
@@ -194,17 +232,25 @@ class GoveeAPI:
     async def _ensure_connected(self) -> None:
         if self._client is not None and self._client.is_connected:
             return
-        self._client = await establish_connection(
-            BleakClient,
-            self._ble_device,
-            self.address,
-            max_attempts=self._max_attempts,
-            ble_device_callback_timeout=self._timeout,
-        )
-        await self._client.start_notify(READ_CHARACTERISTIC_UUID, self._handle_notification)
+        # Use retry logic with exponential backoff
+        success = await self._retry_connection()
+        if not success:
+            raise ConnectionError(
+                f"Failed to connect to {self.address} after {MAX_RECONNECT_ATTEMPTS} attempts"
+            )
+        async with self._connect_lock:
+            if self._client is not None and self._client.is_connected:
+                return
+            self._client = await establish_connection(
+                BleakClient, self._ble_device, self.address, timeout=20.0
+            )
+            await self._client.start_notify(READ_CHARACTERISTIC_UUID, self._handle_notification)
+            # Capture RSSI on successful connection
+            self.rssi = self._ble_device.rssi
 
     async def _write(self, packet: bytes) -> None:
         await self._ensure_connected()
+        assert self._client is not None  # _ensure_connected raises if connection fails
         # Suppress state notifications for 500ms to prevent stale device state
         # from overwriting optimistic updates
         self._suppress_update_until = time.time() + 0.5
@@ -253,21 +299,26 @@ class GoveeAPI:
             self.color_rgb = (frame[3], frame[4], frame[5])
             self.color_temp = None  # clear stale color temp
 
-        # Throttle callbacks based on suppression window
-        current_time = time.time() * 1000  # convert to milliseconds
-        if current_time - self._last_callback_time >= self._suppression_window:
-            await self._update_callback()
-            self._last_callback_time = current_time
-        # else: notification suppressed (too soon after last callback)
+            # Throttle callbacks based on suppression window
+            current_time = time.time() * 1000  # convert to milliseconds
+            if current_time - self._last_callback_time >= self._suppression_window:
+                await self._update_callback()
+                self._last_callback_time = current_time
+            # else: notification suppressed (too soon after last callback)
+        except Exception as err:
+            _LOGGER.error(f"Error handling notification: {err}")
 
     async def poll_state(self) -> None:
         """Request current power, brightness, and color state from the device."""
         await self._ensure_connected()
+        assert self._client is not None  # _ensure_connected raises if connection fails
         _LOGGER.debug("Polling device state")
         for cmd in (_POWER_CMD, _BRIGHTNESS_CMD, _COLOR_CMD):
             await self._client.write_gatt_char(
                 WRITE_CHARACTERISTIC_UUID, _build_query(cmd), False
             )
+        # Record timestamp of successful poll
+        self.last_poll_time = time.time()
 
     async def set_power(self, on: bool) -> None:
         _LOGGER.debug(f"Sending power command: on={on}")

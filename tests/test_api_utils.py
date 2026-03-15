@@ -1,4 +1,3 @@
-import pytest
 from custom_components.govee_h6006.api_utils import GoveePacket
 
 

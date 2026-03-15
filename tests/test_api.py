@@ -1,5 +1,7 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
+
 from custom_components.govee_h6006.api import GoveeAPI
 from custom_components.govee_h6006.api_utils import GoveePacket
 
@@ -130,6 +132,37 @@ async def test_api_uses_default_timeout_and_retries(mock_ble_device, update_call
 
 
 @pytest.mark.asyncio
+async def test_reconnect_resets_state_on_success(api, mock_bleak_client):
+    """Test that successful reconnection resets reconnect counter."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client), \
+         patch("asyncio.sleep"):
+        # Simulate a previous failed reconnection attempt
+        api._reconnect_attempts = 2
+
+        # Disconnect
+        api._client = None
+        mock_bleak_client.is_connected = False
+
+        # Operation should reconnect and reset counter
+        await api.set_power(False)
+
+        # Counter should be reset to 0 after successful reconnection
+        assert api._reconnect_attempts == 0
+        assert api.is_available is True
+
+
+@pytest.mark.asyncio
+async def test_connection_timeout_is_20_seconds(api, mock_bleak_client):
+    """Test that establish_connection is called with timeout=20 seconds."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client) as mock_connect:
+        await api.set_power(True)
+
+        # Verify establish_connection was called with timeout=20
+        call_args = mock_connect.call_args
+        assert 'timeout' in call_args.kwargs
+        assert call_args.kwargs['timeout'] == 20.0
 async def test_api_suppresses_rapid_notifications(mock_ble_device):
     """Test that rapid notifications are throttled based on suppression_window."""
     import time

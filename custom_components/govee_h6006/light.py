@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from typing import Any
 
 from homeassistant.components.light import ColorMode, LightEntity
@@ -7,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MIN_KELVIN, MAX_KELVIN
+from .const import DOMAIN, MAX_KELVIN, MIN_KELVIN
 from .coordinator import GoveeCoordinator
 
 

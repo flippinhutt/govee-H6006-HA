@@ -1,6 +1,8 @@
 from __future__ import annotations
+
+import logging
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 
 from homeassistant.components import bluetooth
@@ -26,9 +28,14 @@ class GoveeData:
     brightness: int | None = None
     color_rgb: tuple[int, int, int] | None = None
     color_temp: int | None = None
+    rssi: int | None = None
+    connection_success_rate: float | None = None
+    last_poll_time: datetime | None = None
+    connection_state: str = "disconnected"
+    total_reconnections: int = 0
 
 
-class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
+class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
     def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry) -> None:
         self.device_address = config_entry.data["address"]
         self.device_name = config_entry.data["name"]
@@ -71,6 +78,11 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):
             brightness=self._api.brightness,
             color_rgb=self._api.color_rgb,
             color_temp=self._api.color_temp,
+            rssi=self._api.rssi,
+            connection_success_rate=self._api.connection_success_rate,
+            last_poll_time=datetime.fromtimestamp(self._api.last_poll_time) if self._api.last_poll_time else None,
+            connection_state=self._api.connection_state,
+            total_reconnections=self._api.total_reconnections,
         )
 
     async def _async_push_data(self) -> None:
