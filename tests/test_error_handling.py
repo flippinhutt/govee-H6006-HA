@@ -1,7 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.govee_h6006.coordinator import GoveeCoordinator
@@ -17,12 +16,6 @@ def config_entry():
     entry.options = {}
     entry.unique_id = "AA:BB:CC:DD:EE:FF"
     return entry
-
-
-@pytest.fixture
-def mock_hass():
-    hass = MagicMock(spec=HomeAssistant)
-    return hass
 
 
 @pytest.mark.asyncio
