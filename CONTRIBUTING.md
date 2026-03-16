@@ -320,9 +320,51 @@ For questions, ideas, and general discussion, please use **GitHub Discussions** 
 - **Ideas**: Share ideas for future improvements
 - **Show and Tell**: Share your setups and configurations
 
-To enable GitHub Discussions (requires repo admin access):
-1. Go to **Settings** → **Features** → **Discussions**
-2. Check the box to enable Discussions
+#### Setting Up GitHub Discussions (For Maintainers)
+
+**Requirements:**
+- Repository owner or admin access
+- Repository must be public or GitHub Enterprise
+
+**Setup Instructions:**
+
+1. **Navigate to repository Settings**
+   - Go to your repository on GitHub
+   - Click **Settings** (requires admin access)
+
+2. **Enable Discussions feature**
+   - Scroll down to the **Features** section
+   - Check the box next to **Discussions**
+   - Click **Set up discussions** if prompted
+
+3. **Configure categories** (Recommended)
+   - Go to the **Discussions** tab in your repository
+   - Click the **⚙️** icon to manage categories
+   - Create or customize categories:
+     - **Q&A** - For support questions (enable answer marking)
+     - **Ideas** - For feature requests and brainstorming
+     - **Show and Tell** - For community showcases
+     - **Announcements** - For project updates (maintainer-only posting)
+     - **General** - For other discussions
+
+4. **Set permissions**
+   - Go to **Settings** → **Moderation options**
+   - Configure who can create discussions (default: anyone with read access)
+   - Set up moderation team if needed
+   - Enable/disable anonymous posting (default: disabled for private repos)
+
+5. **Pin important discussions**
+   - Pin welcome/FAQ discussions to the top
+   - Pin contribution guidelines or device support status
+
+**Permissions Note:** Only repository administrators can enable Discussions. Once enabled, any user with read access can view discussions, and users with write access can create and reply to discussions. Moderation settings can be adjusted in **Settings** → **Moderation options**.
+
+**Best Practices:**
+- Enable the Q&A category with answer marking to help users find solutions
+- Create an Announcements category with restricted posting (maintainers only)
+- Use pinned discussions for frequently asked questions
+- Set up discussion templates to guide users in providing helpful information
+- Review moderation settings to prevent spam while keeping the community open
 
 ### Getting Help
 
