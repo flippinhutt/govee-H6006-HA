@@ -1,12 +1,12 @@
 """Tests for concurrent operation of multiple Govee H6006 coordinators."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from homeassistant.core import HomeAssistant
 
-from custom_components.govee_h6006.coordinator import GoveeCoordinator
 from custom_components.govee_h6006.const import DOMAIN
+from custom_components.govee_h6006.coordinator import GoveeCoordinator
 
 
 @pytest.fixture
@@ -437,7 +437,8 @@ async def test_concurrent_polling_of_multiple_coordinators(
         assert results[1].rssi == -70
 
         assert results[2].brightness == 200
-        assert results[2].color_rgb == (255, 256, 128)  # Note: may exceed 255, depends on API validation
+        # Note: may exceed 255, depends on API validation
+        assert results[2].color_rgb == (255, 256, 128)
         assert results[2].rssi == -80
 
         # Verify all API instances were polled

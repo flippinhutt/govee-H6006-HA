@@ -106,7 +106,9 @@ async def test_notification_updates_state(api, mock_bleak_client, update_callbac
 
 
 @pytest.mark.asyncio
-async def test_api_passes_timeout_to_establish_connection(mock_ble_device, update_callback, mock_bleak_client):
+async def test_api_passes_timeout_to_establish_connection(
+    mock_ble_device, update_callback, mock_bleak_client
+):
     api = GoveeAPI(mock_ble_device, update_callback, timeout=20.0, max_attempts=3)
     with patch("custom_components.govee_h6006.api.establish_connection",
                return_value=mock_bleak_client) as mock_connect:
@@ -119,7 +121,9 @@ async def test_api_passes_timeout_to_establish_connection(mock_ble_device, updat
 
 
 @pytest.mark.asyncio
-async def test_api_uses_default_timeout_and_retries(mock_ble_device, update_callback, mock_bleak_client):
+async def test_api_uses_default_timeout_and_retries(
+    mock_ble_device, update_callback, mock_bleak_client
+):
     api = GoveeAPI(mock_ble_device, update_callback)
     with patch("custom_components.govee_h6006.api.establish_connection",
                return_value=mock_bleak_client) as mock_connect:
@@ -580,7 +584,7 @@ async def test_poll_state_last_query_fails(api, mock_bleak_client):
 async def test_poll_state_disconnection_during_polling(api, mock_bleak_client):
     """Test that poll_state handles disconnection during polling."""
     with patch("custom_components.govee_h6006.api.establish_connection",
-               return_value=mock_bleak_client) as mock_connect:
+               return_value=mock_bleak_client):
         # First call succeeds, then simulate disconnection
         async def write_with_disconnect(*args, **kwargs):
             # Simulate disconnection after first write

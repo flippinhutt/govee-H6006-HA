@@ -150,11 +150,11 @@ _ha_light_stub.ColorMode = _ColorMode
 _ha_light_stub.LightEntity = _LightEntity
 
 # Stub homeassistant.components.sensor with SensorDeviceClass, SensorEntity, and SensorStateClass
-class _SensorDeviceClass(str, enum.Enum):
+class _SensorDeviceClass(enum.StrEnum):
     SIGNAL_STRENGTH = "signal_strength"
     TIMESTAMP = "timestamp"
 
-class _SensorStateClass(str, enum.Enum):
+class _SensorStateClass(enum.StrEnum):
     TOTAL_INCREASING = "total_increasing"
 
 class _SensorEntity:
@@ -166,14 +166,14 @@ _ha_sensor_stub.SensorEntity = _SensorEntity
 _ha_sensor_stub.SensorStateClass = _SensorStateClass
 
 # Stub homeassistant.helpers.entity with EntityCategory
-class _EntityCategory(str, enum.Enum):
+class _EntityCategory(enum.StrEnum):
     DIAGNOSTIC = "diagnostic"
 
 _ha_entity_stub = MagicMock()
 _ha_entity_stub.EntityCategory = _EntityCategory
 
 # Stub homeassistant.const with Platform and sensor constants
-class _Platform(str, enum.Enum):
+class _Platform(enum.StrEnum):
     LIGHT = "light"
     SENSOR = "sensor"
 

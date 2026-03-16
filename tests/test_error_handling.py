@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+
 from custom_components.govee_h6006.coordinator import GoveeCoordinator
 
 
@@ -175,7 +177,9 @@ async def test_set_color_temp_rollback_on_failure(mock_hass, config_entry, mock_
 
 
 @pytest.mark.asyncio
-async def test_set_color_rgb_rollback_preserves_color_temp(mock_hass, config_entry, mock_ble_device):
+async def test_set_color_rgb_rollback_preserves_color_temp(
+    mock_hass, config_entry, mock_ble_device
+):
     """Test that set_color_rgb rollback restores previous color temp mode."""
     with patch(
         "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",

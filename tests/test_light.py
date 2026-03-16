@@ -4,7 +4,7 @@ import pytest
 from homeassistant.components.light import ColorMode
 
 from custom_components.govee_h6006.coordinator import GoveeData
-from custom_components.govee_h6006.light import GoveeLight
+from custom_components.govee_h6006.light import GoveeH6006Light
 
 
 def make_coordinator(state=True, brightness=255, color_rgb=None, color_temp=None):
@@ -27,7 +27,7 @@ def make_coordinator(state=True, brightness=255, color_rgb=None, color_temp=None
 def make_light(coordinator):
     config_entry = MagicMock()
     config_entry.unique_id = "AA:BB:CC:DD:EE:FF"
-    light = GoveeLight(coordinator, config_entry)
+    light = GoveeH6006Light(coordinator, config_entry)
     return light
 
 

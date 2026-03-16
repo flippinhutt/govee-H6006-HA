@@ -19,10 +19,10 @@ async def async_setup_entry(
 ) -> None:
     """Set up Govee H6006 light platform."""
     coordinator: GoveeCoordinator = hass.data[DOMAIN][config_entry.entry_id]
-    async_add_entities([GoveeLight(coordinator, config_entry)])
+    async_add_entities([GoveeH6006Light(coordinator, config_entry)])
 
 
-class GoveeLight(CoordinatorEntity[GoveeCoordinator], LightEntity):
+class GoveeH6006Light(CoordinatorEntity[GoveeCoordinator], LightEntity):  # type: ignore[misc]
     """Representation of a Govee H6006 BLE light.
 
     Maps Home Assistant light entity commands to GoveeCoordinator actions.
@@ -44,19 +44,23 @@ class GoveeLight(CoordinatorEntity[GoveeCoordinator], LightEntity):
 
     @property
     def is_on(self) -> bool | None:
-        return self.coordinator.data.state
+        """Return true if light is on."""
+        return self.coordinator.data.state  # type: ignore[no-any-return]
 
     @property
     def brightness(self) -> int | None:
-        return self.coordinator.data.brightness
+        """Return the brightness of this light."""
+        return self.coordinator.data.brightness  # type: ignore[no-any-return]
 
     @property
     def rgb_color(self) -> tuple[int, int, int] | None:
-        return self.coordinator.data.color_rgb
+        """Return the rgb color value."""
+        return self.coordinator.data.color_rgb  # type: ignore[no-any-return]
 
     @property
-    def color_temp_kelvin(self) -> int | None:
-        return self.coordinator.data.color_temp
+    def color_temp(self) -> int | None:
+        """Return the color_temp of the light."""
+        return self.coordinator.data.color_temp  # type: ignore[no-any-return]
 
     @property
     def color_mode(self) -> ColorMode:

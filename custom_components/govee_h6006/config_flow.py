@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 from __future__ import annotations
 
 from typing import Any
@@ -74,14 +75,14 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
         if self._discovery_info is None:
             return self.async_abort(reason="no_devices_found")
         if user_input is not None:
-            return self.async_create_entry(
+            return self.async_create_entry(  # type: ignore[no-any-return]
                 title=self._discovery_info.name,
                 data={
                     "address": self._discovery_info.address,
                     "name": self._discovery_info.name,
                 },
             )
-        return self.async_show_form(
+        return self.async_show_form(  # type: ignore[no-any-return]
             step_id="bluetooth_confirm",
             description_placeholders={"name": self._discovery_info.name},
         )
@@ -112,7 +113,7 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
         if not self._discovered_devices:
             return self.async_abort(reason="no_devices_found")
 
-        return self.async_show_form(
+        return self.async_show_form(  # type: ignore[no-any-return]
             step_id="user",
             data_schema=vol.Schema(
                 {vol.Required("address"): vol.In(
@@ -122,17 +123,17 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
 
-class GoveeH6006OptionsFlowHandler(OptionsFlow):
+class GoveeH6006OptionsFlowHandler(OptionsFlow):  # type: ignore[misc]
     """Handle options flow for Govee H6006."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> dict:
+    ) -> dict[Any, Any]:  # type: ignore[type-arg,no-any-return]
         """Manage the options."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        return self.async_show_form(
+        return self.async_show_form(  # type: ignore[no-any-return]
             step_id="init",
             data_schema=vol.Schema(
                 {

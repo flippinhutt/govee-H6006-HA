@@ -1,17 +1,18 @@
-import pytest
-from unittest.mock import MagicMock
 from datetime import datetime
+from unittest.mock import MagicMock
+
 from homeassistant.components.sensor import SensorDeviceClass
-from homeassistant.const import SIGNAL_STRENGTH_DECIBELS_MILLIWATT, PERCENTAGE
+from homeassistant.const import PERCENTAGE, SIGNAL_STRENGTH_DECIBELS_MILLIWATT
 from homeassistant.helpers.entity import EntityCategory
+
+from custom_components.govee_h6006.coordinator import GoveeData
 from custom_components.govee_h6006.sensor import (
-    GoveeRSSISensor,
+    GoveeConnectionStateSensor,
     GoveeConnectionSuccessRateSensor,
     GoveeLastPollSensor,
-    GoveeConnectionStateSensor,
+    GoveeRSSISensor,
     GoveeTotalReconnectionsSensor,
 )
-from custom_components.govee_h6006.coordinator import GoveeData
 
 
 def make_coordinator(

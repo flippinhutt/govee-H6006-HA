@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 from homeassistant import config_entries
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.data_entry_flow import FlowResultType
 
 from custom_components.govee_h6006.const import DOMAIN
@@ -216,6 +215,7 @@ async def test_options_flow_rejects_invalid_values():
 async def test_bluetooth_discovery_sets_unique_id(hass):
     """Test that bluetooth discovery sets unique ID based on device address."""
     from unittest.mock import AsyncMock
+
     from custom_components.govee_h6006.config_flow import GoveeH6006ConfigFlow
 
     service_info = make_service_info(address="AA:BB:CC:DD:EE:FF")

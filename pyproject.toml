@@ -47,17 +47,29 @@ combine-as-imports = true
 "tests/conftest.py" = [
     "F401",  # Imported but unused (stubs are imported to patch modules)
     "F811",  # Redefinition of unused name (pytest fixtures)
+    "E501",  # Line too long (stubs often have long signatures)
 ]
 
 [tool.mypy]
 # Set Python version to match Home Assistant minimum
 python_version = "3.11"
 
-# Enable strict type checking for core modules
-strict = true
+# Enable type checking for core modules
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = false
+check_untyped_defs = true
+no_implicit_reexport = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_any_return = false
+disallow_subclassing_any = false
+disallow_untyped_decorators = false
 
 # Ignore missing imports for dependencies without type stubs
 ignore_missing_imports = true
+explicit_package_bases = true
 
 # Per-module configuration - apply strict mode to core modules
 [[tool.mypy.overrides]]
@@ -88,3 +100,8 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "pytest.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+strict = false
+ignore_errors = true

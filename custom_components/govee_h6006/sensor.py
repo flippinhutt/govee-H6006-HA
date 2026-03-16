@@ -31,7 +31,7 @@ async def async_setup_entry(
     ])
 
 
-class GoveeRSSISensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):
+class GoveeRSSISensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):  # type: ignore[misc]
     _attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
     _attr_native_unit_of_measurement = SIGNAL_STRENGTH_DECIBELS_MILLIWATT
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -43,10 +43,10 @@ class GoveeRSSISensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):
 
     @property
     def native_value(self) -> int | None:
-        return self.coordinator.data.rssi
+        return self.coordinator.data.rssi  # type: ignore[no-any-return]
 
 
-class GoveeConnectionSuccessRateSensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):
+class GoveeConnectionSuccessRateSensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):  # type: ignore[misc]
     _attr_native_unit_of_measurement = PERCENTAGE
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
@@ -57,10 +57,10 @@ class GoveeConnectionSuccessRateSensor(CoordinatorEntity[GoveeCoordinator], Sens
 
     @property
     def native_value(self) -> float | None:
-        return self.coordinator.data.connection_success_rate
+        return self.coordinator.data.connection_success_rate  # type: ignore[no-any-return]
 
 
-class GoveeLastPollSensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):
+class GoveeLastPollSensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):  # type: ignore[misc]
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
@@ -70,11 +70,11 @@ class GoveeLastPollSensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):
         self._attr_name = f"{coordinator.device_name} Last Poll"
 
     @property
-    def native_value(self):
-        return self.coordinator.data.last_poll_time
+    def native_value(self) -> str | None:  # Added type hint
+        return self.coordinator.data.last_poll_time  # type: ignore[no-any-return]
 
 
-class GoveeConnectionStateSensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):
+class GoveeConnectionStateSensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):  # type: ignore[misc]
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: GoveeCoordinator, config_entry: ConfigEntry) -> None:
@@ -84,10 +84,10 @@ class GoveeConnectionStateSensor(CoordinatorEntity[GoveeCoordinator], SensorEnti
 
     @property
     def native_value(self) -> str:
-        return self.coordinator.data.connection_state
+        return self.coordinator.data.connection_state  # type: ignore[no-any-return]
 
 
-class GoveeTotalReconnectionsSensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):
+class GoveeTotalReconnectionsSensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):  # type: ignore[misc]
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
 
@@ -97,5 +97,10 @@ class GoveeTotalReconnectionsSensor(CoordinatorEntity[GoveeCoordinator], SensorE
         self._attr_name = f"{coordinator.device_name} Total Reconnections"
 
     @property
+    async def _async_update_data(self) -> int:
+        """Fetch data from API."""
+        return await self.coordinator.api.get_total_reconnections()  # type: ignore[no-any-return]
+
+    @property
     def native_value(self) -> int:
-        return self.coordinator.data.total_reconnections
+        return self.coordinator.data.total_reconnections  # type: ignore[no-any-return]

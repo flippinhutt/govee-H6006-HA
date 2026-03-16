@@ -10,11 +10,40 @@ on:
       - main
       - dev
   schedule:
-    # Run every Monday at 9:00 AM UTC to catch compatibility issues proactively
     - cron: '0 9 * * 1'
   workflow_dispatch:
 
 jobs:
+  lint:
+    name: Lint (Ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Ruff
+        run: pip install ruff
+      - name: Run Ruff
+        run: ruff check .
+
+  type-check:
+    name: Type Check (Mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          pip install mypy
+          pip install bleak-retry-connector homeassistant
+      - name: Run Mypy
+        run: mypy .
+
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
@@ -24,50 +53,29 @@ jobs:
         python-version: ['3.11', '3.12']
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-asyncio
-
+          pip install pytest pytest-asyncio pytest-cov
+          pip install bleak-retry-connector homeassistant
       - name: Run pytest
         run: |
-          pytest -v --tb=short
+          pytest -v --cov=custom_components.govee_h6006 --cov-report=term-missing --cov-fail-under=85
 
   validate:
     name: Validate JSON files
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Validate manifest.json
         run: |
           python -c "import json; json.load(open('custom_components/govee_h6006/manifest.json'))"
-          echo "✓ manifest.json is valid JSON"
-
       - name: Validate hacs.json
         run: |
           python -c "import json; json.load(open('hacs.json'))"
-          echo "✓ hacs.json is valid JSON"
-
-      - name: Check manifest.json structure
-        run: |
-          python -c "
-          import json
-          manifest = json.load(open('custom_components/govee_h6006/manifest.json'))
-          required = ['domain', 'name', 'version', 'documentation', 'requirements', 'codeowners']
-          missing = [k for k in required if k not in manifest]
-          if missing:
-              raise ValueError(f'Missing required keys: {missing}')
-          print('✓ manifest.json has all required keys')
-          "
