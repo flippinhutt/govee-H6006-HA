@@ -17,16 +17,27 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
+    """Set up Govee H6006 light platform."""
     coordinator: GoveeCoordinator = hass.data[DOMAIN][config_entry.entry_id]
     async_add_entities([GoveeLight(coordinator, config_entry)])
 
 
 class GoveeLight(CoordinatorEntity[GoveeCoordinator], LightEntity):
+    """Representation of a Govee H6006 BLE light.
+
+    Maps Home Assistant light entity commands to GoveeCoordinator actions.
+    """
     _attr_supported_color_modes = {ColorMode.RGB, ColorMode.COLOR_TEMP}
     _attr_min_color_temp_kelvin = MIN_KELVIN
     _attr_max_color_temp_kelvin = MAX_KELVIN
 
     def __init__(self, coordinator: GoveeCoordinator, config_entry: ConfigEntry) -> None:
+        """Initialize Govee light entity.
+
+        Args:
+            coordinator: The data update coordinator.
+            config_entry: The config entry associated with this light.
+        """
         super().__init__(coordinator)
         self._attr_unique_id = config_entry.unique_id
         self._attr_name = coordinator.device_name
@@ -66,6 +77,11 @@ class GoveeLight(CoordinatorEntity[GoveeCoordinator], LightEntity):
         return self._attr_max_color_temp_kelvin
 
     async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn the light on.
+
+        Args:
+            **kwargs: Light attributes to set (brightness, rgb_color, color_temp_kelvin).
+        """
         if not self.is_on:
             await self.coordinator.set_power(True)
         if "brightness" in kwargs:
@@ -77,4 +93,5 @@ class GoveeLight(CoordinatorEntity[GoveeCoordinator], LightEntity):
             await self.coordinator.set_color_temp(kwargs["color_temp_kelvin"])
 
     async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn the light off."""
         await self.coordinator.set_power(False)

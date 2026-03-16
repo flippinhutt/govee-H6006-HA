@@ -20,6 +20,14 @@ This Home Assistant custom integration discovers and controls Govee H6006 Blueto
 - **🚫 No Cloud**: Never talks to Govee's servers or requires API keys
 - **🔌 Simple Setup**: If you have a Bluetooth adapter, you're ready to go
 
+## 📚 Documentation
+
+Detailed documentation is available in the `docs/` folder:
+
+- **[Architecture Guide](docs/ARCHITECTURE.md)**: Deep dive into the component design and data flow.
+- **[Internal API Reference](docs/API.md)**: Technical details on classes, methods, and BLE packets.
+- **[Govee Protocol Reference](CLAUDE.md#protocol-reference)**: Quick reference for BLE command frames.
+
 ### Supported Devices
 
 Currently supports:
@@ -210,10 +218,24 @@ This integration uses Govee's proprietary Bluetooth Low Energy (BLE) protocol to
 
 ### Technical Details
 
+The integration is built on a robust architecture designed for Home Assistant:
+
+```mermaid
+graph LR
+    HA[Home Assistant] --> Coord[Coordinator]
+    Coord --> API[Govee BLE API]
+    API --> Bulb((H6006 Bulb))
+    
+    style HA fill:#f9f,stroke:#333,stroke-width:2px
+    style Bulb fill:#00ff00,stroke:#333,stroke-width:2px
+```
+
 - **Service**: Uses standard BLE GATT services
 - **Discovery**: Devices advertise as `ihoment_*` via BLE advertising packets
 - **Commands**: Power, brightness, and RGB color are sent via GATT characteristic writes
 - **State Polling**: Device state is read periodically via GATT characteristic reads
+
+For more details, see the **[Architecture Overview](docs/ARCHITECTURE.md)**.
 
 ## Help and Contribution
 

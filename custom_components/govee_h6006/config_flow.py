@@ -11,27 +11,30 @@ from homeassistant.config_entries import ConfigFlow, OptionsFlow
 from homeassistant.core import callback
 
 from .const import (
-    DOMAIN,
-    DISCOVERY_NAME,
-    DEFAULT_POLLING_INTERVAL,
-    MIN_POLLING_INTERVAL,
-    MAX_POLLING_INTERVAL,
     DEFAULT_CONNECTION_TIMEOUT,
-    MIN_CONNECTION_TIMEOUT,
-    MAX_CONNECTION_TIMEOUT,
-    DEFAULT_SUPPRESSION_WINDOW,
-    MIN_SUPPRESSION_WINDOW,
-    MAX_SUPPRESSION_WINDOW,
     DEFAULT_MAX_RETRIES,
-    MIN_MAX_RETRIES,
+    DEFAULT_POLLING_INTERVAL,
+    DEFAULT_SUPPRESSION_WINDOW,
+    DISCOVERY_NAME,
+    DOMAIN,
+    MAX_CONNECTION_TIMEOUT,
     MAX_MAX_RETRIES,
+    MAX_POLLING_INTERVAL,
+    MAX_SUPPRESSION_WINDOW,
+    MIN_CONNECTION_TIMEOUT,
+    MIN_MAX_RETRIES,
+    MIN_POLLING_INTERVAL,
+    MIN_SUPPRESSION_WINDOW,
 )
 
 
 class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Govee H6006 BLE."""
+
     VERSION = 1
 
     def __init__(self) -> None:
+        """Initialize config flow."""
         self._discovery_info: BluetoothServiceInfoBleak | None = None
         self._discovered_devices: dict[str, BluetoothServiceInfoBleak] = {}
 
@@ -50,6 +53,11 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_bluetooth(
         self, discovery_info: BluetoothServiceInfoBleak
     ) -> dict:
+        """Handle bluetooth discovery.
+
+        Args:
+            discovery_info: Discovery information from Bluetooth.
+        """
         self._discovery_info = discovery_info
         await self.async_set_unique_id(discovery_info.address)
         self._abort_if_unique_id_configured()
@@ -58,6 +66,11 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_bluetooth_confirm(
         self, user_input: dict[str, Any] | None = None
     ) -> dict:
+        """Confirm a device found via bluetooth discovery.
+
+        Args:
+            user_input: User input from the confirmation form.
+        """
         if self._discovery_info is None:
             return self.async_abort(reason="no_devices_found")
         if user_input is not None:
@@ -76,6 +89,11 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> dict:
+        """Handle a flow initialized by the user via manual addition.
+
+        Args:
+            user_input: User input from the device selection form.
+        """
         if user_input is not None:
             address = user_input["address"]
             self._discovery_info = self._discovered_devices[address]

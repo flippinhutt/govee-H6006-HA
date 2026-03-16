@@ -8,3 +8,11 @@
 .worktrees/
 .security-key
 logs/security/
+
+# Other Directories
+.agents/
+.claude/
+.worktrees/
+.ruff_cache/
+.pytest_cache/
+.continue/

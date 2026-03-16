@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-from collections import deque
 import logging
 import time
+from collections import deque
 from collections.abc import Awaitable, Callable
 from typing import cast
 
@@ -42,14 +42,37 @@ def _build_query(cmd: int) -> bytes:
 
 
 class GoveeAPI:
+    """Interface for Govee H6006 BLE device communication.
+
+    Handles persistent Bluetooth connections, command execution, and notification
+    parsing for Govee H6006 lights using the bleak library.
+
+    Attributes:
+        state: Current power state (True=on, False=off).
+        brightness: Current brightness level (0-255).
+        color_rgb: Current RGB color tuple (R, G, B).
+        color_temp: Current color temperature in Kelvin.
+        rssi: Last reported signal strength in dBm.
+        total_reconnections: Total count of successful automatic reconnections.
+    """
+
     def __init__(
         self,
         ble_device: BLEDevice,
-        update_callback,
+        update_callback: Callable[[], Awaitable[None]],
         timeout: float = 20.0,
         max_attempts: int = 5,
         suppression_window: int = 500,
     ) -> None:
+        """Initialize the Govee API client.
+
+        Args:
+            ble_device: The Bluetooth device to connect to.
+            update_callback: Async callback executed when device state changes.
+            timeout: BLE operation timeout in seconds.
+            max_attempts: Maximum number of connection attempts.
+            suppression_window: Time in ms to suppress notifications after a command.
+        """
         self._ble_device = ble_device
         self._update_callback = update_callback
         self._timeout = timeout
@@ -70,12 +93,14 @@ class GoveeAPI:
         self._connection_lock: asyncio.Lock = asyncio.Lock()
         # Diagnostic metrics
         self.rssi: int | None = None
-        self._connection_attempts: deque[bool] = deque(maxlen=10)  # Track last 10 attempts (True=success, False=failure)
+        # Track last 10 attempts (True=success, False=failure)
+        self._connection_attempts: deque[bool] = deque(maxlen=10)
         self.last_poll_time: float | None = None  # Timestamp of last successful poll
         self.total_reconnections: int = 0  # Total number of successful reconnections
 
     @property
     def address(self) -> str:
+        """Return the Bluetooth MAC address of the device."""
         return cast(str, self._ble_device.address)
 
     @property
@@ -107,7 +132,7 @@ class GoveeAPI:
 
     @property
     def connection_success_rate(self) -> float | None:
-        """Return connection success rate as percentage (0-100) over last 10 attempts, or None if no attempts."""
+        """Return connection success rate (0-100) over last 10 attempts."""
         if not self._connection_attempts:
             return None
         successful = sum(1 for attempt in self._connection_attempts if attempt)
@@ -122,14 +147,22 @@ class GoveeAPI:
             return f"reconnecting (attempt {self._reconnect_attempts + 1}/{MAX_RECONNECT_ATTEMPTS})"
         if self._reconnect_attempts >= MAX_RECONNECT_ATTEMPTS:
             if self._last_disconnect_time is not None:
-                cooldown_remaining = RECONNECT_COOLDOWN_SECONDS - (time.time() - self._last_disconnect_time)
+                elapsed = time.time() - self._last_disconnect_time
+                cooldown_remaining = RECONNECT_COOLDOWN_SECONDS - elapsed
                 if cooldown_remaining > 0:
                     return f"unavailable (cooldown {int(cooldown_remaining)}s remaining)"
             return "unavailable (max attempts exceeded)"
         return "disconnected"
 
     def update_device(self, ble_device: BLEDevice) -> None:
-        """Refresh the BLE device handle (call before connecting if handle may be stale)."""
+        """Refresh the BLE device handle.
+
+        Call this before connecting if the device handle may be stale (e.g., from
+        a discovery callback).
+
+        Args:
+            ble_device: The new BLEDevice handle.
+        """
         self._ble_device = ble_device
 
     async def _retry_connection(self) -> bool:
@@ -234,6 +267,11 @@ class GoveeAPI:
             self._is_reconnecting = False
 
     async def _ensure_connected(self) -> None:
+        """Ensure the device is connected and notifications are started.
+
+        Raises:
+            ConnectionError: If connection cannot be established after retries.
+        """
         if self._client is not None and self._client.is_connected:
             return
         # Use retry logic with exponential backoff
@@ -257,6 +295,11 @@ class GoveeAPI:
             self.rssi = self._ble_device.rssi
 
     async def _write(self, packet: bytes) -> None:
+        """Write a packet to the device's write characteristic.
+
+        Args:
+            packet: The 20-byte packet to write.
+        """
         await self._ensure_connected()
         assert self._client is not None  # _ensure_connected raises if connection fails
         # Suppress state notifications for 500ms to prevent stale device state
@@ -315,7 +358,11 @@ class GoveeAPI:
             _LOGGER.error(f"Error handling notification: {err}")
 
     async def poll_state(self) -> None:
-        """Request current power, brightness, and color state from the device."""
+        """Request current power, brightness, and color state from the device.
+
+        Sends state-query commands for power, brightness, and color. Responses
+        will flow back via the notification handler.
+        """
         await self._ensure_connected()
         assert self._client is not None  # _ensure_connected raises if connection fails
         _LOGGER.debug("Polling device state")
@@ -327,17 +374,39 @@ class GoveeAPI:
         self.last_poll_time = time.time()
 
     async def set_power(self, on: bool) -> None:
+        """Set the power state of the device.
+
+        Args:
+            on: True to turn on, False to turn off.
+        """
         _LOGGER.debug(f"Sending power command: on={on}")
         await self._write(GoveePacket.power(on))
 
     async def set_brightness(self, value: int) -> None:
+        """Set the brightness level of the device.
+
+        Args:
+            value: Brightness level (0-255).
+        """
         _LOGGER.debug(f"Sending brightness command: value={value}")
         await self._write(GoveePacket.brightness(value))
 
     async def set_color_rgb(self, r: int, g: int, b: int) -> None:
+        """Set the RGB color of the device.
+
+        Args:
+            r: Red value (0-255).
+            g: Green value (0-255).
+            b: Blue value (0-255).
+        """
         _LOGGER.debug(f"Sending RGB command: r={r}, g={g}, b={b}")
         await self._write(GoveePacket.color_rgb(r, g, b))
 
     async def set_color_temp(self, kelvin: int) -> None:
+        """Set the color temperature of the device.
+
+        Args:
+            kelvin: Color temperature in Kelvin (2700-6500).
+        """
         _LOGGER.debug(f"Sending color temp command: kelvin={kelvin}")
         await self._write(GoveePacket.color_temp(kelvin))
