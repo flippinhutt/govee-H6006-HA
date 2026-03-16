@@ -38,6 +38,9 @@ class GoveeData:
     last_poll_time: datetime | None = None
     connection_state: str = "disconnected"
     total_reconnections: int = 0
+    firmware_version: str | None = None
+    hardware_version: str | None = None
+    model_number: str | None = None
 
 
 class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
@@ -79,6 +82,27 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
             suppression_window=suppression_window,
         )
 
+        # Query device info on initialization
+        # Schedule as a task to not block coordinator setup
+        async def _init_device_info() -> None:
+            """Query device information and log firmware version."""
+            try:
+                await self._api.query_device_info()
+                if self._api.firmware_version:
+                    _LOGGER.info(
+                        f"Connected to {self.device_name} - "
+                        f"Firmware: {self._api.firmware_version}, "
+                        f"Hardware: {self._api.hardware_version}, "
+                        f"Model: {self._api.model_number}"
+                    )
+                else:
+                    _LOGGER.debug("Device info not available from device")
+            except Exception as err:
+                _LOGGER.debug(f"Failed to query device info: {err}")
+
+        # Schedule the task
+        hass.async_create_task(_init_device_info())
+
         polling_interval = config_entry.options.get("polling_interval", DEFAULT_POLLING_INTERVAL)
 
         super().__init__(
@@ -111,6 +135,9 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
             ),
             connection_state=self._api.connection_state,
             total_reconnections=self._api.total_reconnections,
+            firmware_version=self._api.firmware_version,
+            hardware_version=self._api.hardware_version,
+            model_number=self._api.model_number,
         )
 
     async def _async_push_data(self) -> None:
