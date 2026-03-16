@@ -170,7 +170,7 @@ body:
         **Next Steps:**
 
         1. **If you have BLE protocol details:** A developer can use your information to add support
-        2. **If you can provide BLE captures:** See the [BLE Protocol Sniffing Tutorial](../docs/ble-protocol-sniffing.md) in the developer guide
+        2. **If you can provide BLE captures:** See the [BLE Protocol Sniffing Tutorial](../docs/BLE_PROTOCOL_SNIFFING.md) in the developer guide
         3. **If you want to add support yourself:** Check out [CONTRIBUTING.md](../CONTRIBUTING.md) for step-by-step instructions
         4. **If you just want to request support:** That's fine too! Community members may pick up this request
 

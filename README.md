@@ -249,9 +249,9 @@ We welcome contributions from the community! Whether you want to report a bug, r
 
 ### Quick Links
 
-- **Report a bug**: Use our [Bug Report issue template](.github/ISSUE_TEMPLATE/bug_report.md)
-- **Request a feature**: Use our [Feature Request issue template](.github/ISSUE_TEMPLATE/feature_request.md)
-- **Request device support**: Use our [Device Support Request issue template](.github/ISSUE_TEMPLATE/device_support.md)
+- **Report a bug**: [Submit a bug report](https://github.com/flippinhutt/govee/issues/new/choose)
+- **Request a feature**: [Request a feature](https://github.com/flippinhutt/govee/issues/new/choose)
+- **Request device support**: [Request device support](https://github.com/flippinhutt/govee/issues/new/choose)
 - **Ask questions**: Join the conversation in [GitHub Discussions](https://github.com/flippinhutt/govee/discussions)
 
 ### Adding Support for New Models
