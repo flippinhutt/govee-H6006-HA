@@ -698,3 +698,277 @@ async def test_poll_state_timeout_propagates(api, mock_bleak_client):
             await api.poll_state()
 
         assert "Timeout" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_poll_state_queries_all_commands(api, mock_bleak_client):
+    """Test that poll_state sends query commands for power, brightness, and color."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        await api.poll_state()
+
+        # Should write 3 query commands (power, brightness, color)
+        assert mock_bleak_client.write_gatt_char.call_count == 3
+
+        # Verify each query command is built with head=0xAA
+        calls = mock_bleak_client.write_gatt_char.call_args_list
+        for call in calls:
+            packet = call[0][1]
+            assert packet[0] == 0xAA  # REQUEST head for query packets
+
+
+# ========================================
+# Device Info Query Tests
+# ========================================
+
+@pytest.mark.asyncio
+async def test_query_device_info_reads_all_characteristics(api, mock_bleak_client):
+    """Test that query_device_info reads firmware, hardware, and model number."""
+    from custom_components.govee_h6006.const import (
+        FIRMWARE_REVISION_UUID,
+        HARDWARE_REVISION_UUID,
+        MODEL_NUMBER_UUID,
+    )
+
+    # Mock successful reads
+    mock_bleak_client.read_gatt_char.side_effect = [
+        b"1.02.03",  # firmware version
+        b"HW_V1.0",  # hardware version
+        b"H6006",    # model number
+    ]
+
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        await api.query_device_info()
+
+        # Verify all three characteristics were read
+        assert mock_bleak_client.read_gatt_char.call_count == 3
+
+        # Verify correct UUIDs were used
+        calls = mock_bleak_client.read_gatt_char.call_args_list
+        assert calls[0][0][0] == FIRMWARE_REVISION_UUID
+        assert calls[1][0][0] == HARDWARE_REVISION_UUID
+        assert calls[2][0][0] == MODEL_NUMBER_UUID
+
+        # Verify values were decoded and stored
+        assert api.firmware_version == "1.02.03"
+        assert api.hardware_version == "HW_V1.0"
+        assert api.model_number == "H6006"
+
+
+@pytest.mark.asyncio
+async def test_query_device_info_strips_whitespace(api, mock_bleak_client):
+    """Test that device info values have whitespace stripped."""
+    mock_bleak_client.read_gatt_char.side_effect = [
+        b"  1.02.03  \n",  # firmware with whitespace
+        b"\tHW_V1.0\r\n",  # hardware with tabs/newlines
+        b"  H6006  ",      # model with spaces
+    ]
+
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        await api.query_device_info()
+
+        # Verify whitespace was stripped
+        assert api.firmware_version == "1.02.03"
+        assert api.hardware_version == "HW_V1.0"
+        assert api.model_number == "H6006"
+
+
+@pytest.mark.asyncio
+async def test_query_device_info_handles_missing_firmware(api, mock_bleak_client):
+    """Test that missing firmware characteristic is handled gracefully."""
+    # First read fails, others succeed
+    mock_bleak_client.read_gatt_char.side_effect = [
+        Exception("Characteristic not found"),
+        b"HW_V1.0",
+        b"H6006",
+    ]
+
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        await api.query_device_info()
+
+        # Firmware should be "Unknown", others should be read
+        assert api.firmware_version == "Unknown"
+        assert api.hardware_version == "HW_V1.0"
+        assert api.model_number == "H6006"
+
+
+@pytest.mark.asyncio
+async def test_query_device_info_handles_missing_hardware(api, mock_bleak_client):
+    """Test that missing hardware characteristic is handled gracefully."""
+    # Second read fails, others succeed
+    mock_bleak_client.read_gatt_char.side_effect = [
+        b"1.02.03",
+        Exception("Characteristic not found"),
+        b"H6006",
+    ]
+
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        await api.query_device_info()
+
+        # Hardware should be "Unknown", others should be read
+        assert api.firmware_version == "1.02.03"
+        assert api.hardware_version == "Unknown"
+        assert api.model_number == "H6006"
+
+
+@pytest.mark.asyncio
+async def test_query_device_info_handles_missing_model(api, mock_bleak_client):
+    """Test that missing model characteristic is handled gracefully."""
+    # Third read fails, others succeed
+    mock_bleak_client.read_gatt_char.side_effect = [
+        b"1.02.03",
+        b"HW_V1.0",
+        Exception("Characteristic not found"),
+    ]
+
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        await api.query_device_info()
+
+        # Model should be "Unknown", others should be read
+        assert api.firmware_version == "1.02.03"
+        assert api.hardware_version == "HW_V1.0"
+        assert api.model_number == "Unknown"
+
+
+@pytest.mark.asyncio
+async def test_query_device_info_handles_all_missing(api, mock_bleak_client):
+    """Test that all missing characteristics are handled gracefully."""
+    # All reads fail
+    mock_bleak_client.read_gatt_char.side_effect = [
+        Exception("Characteristic not found"),
+        Exception("Characteristic not found"),
+        Exception("Characteristic not found"),
+    ]
+
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        await api.query_device_info()
+
+        # All should be "Unknown"
+        assert api.firmware_version == "Unknown"
+        assert api.hardware_version == "Unknown"
+        assert api.model_number == "Unknown"
+
+
+@pytest.mark.asyncio
+async def test_query_device_info_connects_before_reading(api, mock_bleak_client):
+    """Test that query_device_info establishes connection before reading."""
+    mock_bleak_client.read_gatt_char.side_effect = [
+        b"1.02.03",
+        b"HW_V1.0",
+        b"H6006",
+    ]
+
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client) as mock_connect:
+        await api.query_device_info()
+
+        # Verify connection was established
+        mock_connect.assert_called_once()
+
+        # Verify reads happened after connection
+        assert mock_bleak_client.read_gatt_char.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_query_device_info_reuses_existing_connection(api, mock_bleak_client):
+    """Test that query_device_info reuses an existing connection."""
+    mock_bleak_client.read_gatt_char.side_effect = [
+        b"1.02.03",
+        b"HW_V1.0",
+        b"H6006",
+        b"1.02.03",  # Second query
+        b"HW_V1.0",
+        b"H6006",
+    ]
+
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client) as mock_connect:
+        # First query establishes connection
+        await api.query_device_info()
+        assert mock_connect.call_count == 1
+
+        # Second query reuses connection
+        await api.query_device_info()
+        assert mock_connect.call_count == 1  # Still only called once
+
+        # Should have 6 total reads (3 per query)
+        assert mock_bleak_client.read_gatt_char.call_count == 6
+
+
+@pytest.mark.asyncio
+async def test_query_device_info_connection_failure(api):
+    """Test that query_device_info handles connection failures correctly."""
+    with patch("custom_components.govee_h6006.api.establish_connection") as mock_connect:
+        # Make establish_connection fail
+        mock_connect.side_effect = Exception("Connection failed")
+
+        with pytest.raises(ConnectionError) as exc_info:
+            await api.query_device_info()
+
+        # After max retry attempts, a ConnectionError is raised
+        assert "Failed to connect" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_query_device_info_read_timeout(api, mock_bleak_client):
+    """Test that query_device_info handles read timeout."""
+    # First read times out
+    mock_bleak_client.read_gatt_char.side_effect = [
+        TimeoutError("Read timeout"),
+        b"HW_V1.0",
+        b"H6006",
+    ]
+
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        await api.query_device_info()
+
+        # Firmware should be "Unknown" due to timeout, others should succeed
+        assert api.firmware_version == "Unknown"
+        assert api.hardware_version == "HW_V1.0"
+        assert api.model_number == "H6006"
+
+
+@pytest.mark.asyncio
+async def test_query_device_info_empty_values(api, mock_bleak_client):
+    """Test that empty device info values are handled."""
+    mock_bleak_client.read_gatt_char.side_effect = [
+        b"",  # empty firmware
+        b"",  # empty hardware
+        b"",  # empty model
+    ]
+
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        await api.query_device_info()
+
+        # Empty strings after stripping should be preserved
+        assert api.firmware_version == ""
+        assert api.hardware_version == ""
+        assert api.model_number == ""
+
+
+@pytest.mark.asyncio
+async def test_query_device_info_decode_error(api, mock_bleak_client):
+    """Test that query_device_info handles UTF-8 decode errors."""
+    # Mock invalid UTF-8 bytes
+    mock_bleak_client.read_gatt_char.side_effect = [
+        b"\xff\xfe\xfd",  # invalid UTF-8
+        b"HW_V1.0",
+        b"H6006",
+    ]
+
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client):
+        await api.query_device_info()
+
+        # Firmware should be "Unknown" due to decode error, others should succeed
+        assert api.firmware_version == "Unknown"
+        assert api.hardware_version == "HW_V1.0"
+        assert api.model_number == "H6006"
