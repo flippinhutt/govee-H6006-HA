@@ -38,6 +38,9 @@ class GoveeData:
     last_poll_time: datetime | None = None
     connection_state: str = "disconnected"
     total_reconnections: int = 0
+    firmware_version: str | None = None
+    hardware_version: str | None = None
+    model_number: str | None = None
 
 
 class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
