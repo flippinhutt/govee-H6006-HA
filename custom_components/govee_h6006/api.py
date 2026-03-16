@@ -15,7 +15,6 @@ from .api_utils import GoveePacket
 from .const import (
     FIRMWARE_REVISION_UUID,
     HARDWARE_REVISION_UUID,
-    MANUFACTURER_NAME_UUID,
     MAX_KELVIN,
     MAX_RECONNECT_ATTEMPTS,
     MIN_KELVIN,

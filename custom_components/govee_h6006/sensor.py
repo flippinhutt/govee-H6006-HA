@@ -64,7 +64,7 @@ class GoveeSensorEntity(CoordinatorEntity[GoveeCoordinator], SensorEntity):  # t
         )
 
 
-class GoveeRSSISensor(GoveeSensorEntity):  # type: ignore[misc]
+class GoveeRSSISensor(GoveeSensorEntity):
     _attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
     _attr_native_unit_of_measurement = SIGNAL_STRENGTH_DECIBELS_MILLIWATT
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -79,7 +79,7 @@ class GoveeRSSISensor(GoveeSensorEntity):  # type: ignore[misc]
         return self.coordinator.data.rssi  # type: ignore[no-any-return]
 
 
-class GoveeConnectionSuccessRateSensor(GoveeSensorEntity):  # type: ignore[misc]
+class GoveeConnectionSuccessRateSensor(GoveeSensorEntity):
     _attr_native_unit_of_measurement = PERCENTAGE
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
@@ -93,7 +93,7 @@ class GoveeConnectionSuccessRateSensor(GoveeSensorEntity):  # type: ignore[misc]
         return self.coordinator.data.connection_success_rate  # type: ignore[no-any-return]
 
 
-class GoveeLastPollSensor(GoveeSensorEntity):  # type: ignore[misc]
+class GoveeLastPollSensor(GoveeSensorEntity):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
@@ -107,7 +107,7 @@ class GoveeLastPollSensor(GoveeSensorEntity):  # type: ignore[misc]
         return self.coordinator.data.last_poll_time  # type: ignore[no-any-return]
 
 
-class GoveeConnectionStateSensor(GoveeSensorEntity):  # type: ignore[misc]
+class GoveeConnectionStateSensor(GoveeSensorEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: GoveeCoordinator, config_entry: ConfigEntry) -> None:
@@ -120,7 +120,7 @@ class GoveeConnectionStateSensor(GoveeSensorEntity):  # type: ignore[misc]
         return self.coordinator.data.connection_state  # type: ignore[no-any-return]
 
 
-class GoveeTotalReconnectionsSensor(GoveeSensorEntity):  # type: ignore[misc]
+class GoveeTotalReconnectionsSensor(GoveeSensorEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
 
