@@ -237,25 +237,28 @@ graph LR
 
 For more details, see the **[Architecture Overview](docs/ARCHITECTURE.md)**.
 
-## Help and Contribution
+## 🤝 Contributing
 
-Found a bug or have a feature request? Please [open an issue](https://github.com/flippinhutt/govee/issues) on GitHub.
+We welcome contributions from the community! Whether you want to report a bug, request a feature, or add support for a new Govee device, there are many ways to help make this integration better.
 
-### Contributing
+### Contribution Guides
 
-Contributions are welcome! If you'd like to add support for additional Govee models or improve the integration:
+- **[CONTRIBUTING.md](CONTRIBUTING.md)**: Main contribution guide covering code standards, development setup, testing requirements, and the pull request process.
+- **[Developer Guide](docs/CONTRIBUTING_DEVELOPER_GUIDE.md)**: Step-by-step instructions for adding support for new Govee BLE devices, including protocol reverse engineering and testing.
+- **[BLE Protocol Sniffing Tutorial](docs/BLE_PROTOCOL_SNIFFING.md)**: Learn how to capture and analyze Bluetooth traffic using tools like nRF Connect, Wireshark, and btmon.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/my-new-feature`)
-3. Make your changes
-4. Test thoroughly with a real device
-5. Submit a pull request
+### Quick Links
 
-For major changes, please open an issue first to discuss what you'd like to change.
+- **Report a bug**: Use our [Bug Report issue template](.github/ISSUE_TEMPLATE/bug_report.md)
+- **Request a feature**: Use our [Feature Request issue template](.github/ISSUE_TEMPLATE/feature_request.md)
+- **Request device support**: Use our [Device Support Request issue template](.github/ISSUE_TEMPLATE/device_support.md)
+- **Ask questions**: Join the conversation in [GitHub Discussions](https://github.com/flippinhutt/govee/discussions)
 
 ### Adding Support for New Models
 
-If you have a different Govee BLE device and can capture BLE traffic (using tools like Wireshark, nRF Connect, or `btmon`), please open an issue with the capture logs. This helps extend support to more devices.
+Have a different Govee BLE device? We'd love to add support for it! Check out the **[Developer Guide](docs/CONTRIBUTING_DEVELOPER_GUIDE.md)** and **[BLE Protocol Sniffing Tutorial](docs/BLE_PROTOCOL_SNIFFING.md)** to learn how to reverse engineer the protocol and contribute support for your device.
+
+Before starting, please open a **Device Support Request** issue to coordinate with other contributors and share your findings.
 
 ## Disclaimer
 
