@@ -8,7 +8,7 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, SIGNAL_STRENGTH_DECIBELS_MILLIWATT
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -31,13 +31,46 @@ async def async_setup_entry(
     ])
 
 
-class GoveeRSSISensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):  # type: ignore[misc]
+class GoveeSensorEntity(CoordinatorEntity[GoveeCoordinator], SensorEntity):  # type: ignore[misc]
+    """Base class for Govee sensor entities.
+
+    Provides common device_info for all Govee sensors.
+    """
+
+    def __init__(self, coordinator: GoveeCoordinator, config_entry: ConfigEntry) -> None:
+        """Initialize Govee sensor entity.
+
+        Args:
+            coordinator: The data update coordinator.
+            config_entry: The config entry associated with this sensor.
+        """
+        super().__init__(coordinator)
+        self._config_entry = config_entry
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information about this Govee sensor.
+
+        Returns:
+            DeviceInfo dictionary with manufacturer, model, and version information.
+        """
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._config_entry.unique_id)},
+            name=self.coordinator.device_name,
+            manufacturer="Govee",
+            model=self.coordinator.data.model_number or "H6006",
+            sw_version=self.coordinator.data.firmware_version,
+            hw_version=self.coordinator.data.hardware_version,
+        )
+
+
+class GoveeRSSISensor(GoveeSensorEntity):  # type: ignore[misc]
     _attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
     _attr_native_unit_of_measurement = SIGNAL_STRENGTH_DECIBELS_MILLIWATT
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: GoveeCoordinator, config_entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
+        super().__init__(coordinator, config_entry)
         self._attr_unique_id = f"{config_entry.unique_id}_rssi"
         self._attr_name = f"{coordinator.device_name} RSSI"
 
@@ -46,12 +79,12 @@ class GoveeRSSISensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):  # typ
         return self.coordinator.data.rssi  # type: ignore[no-any-return]
 
 
-class GoveeConnectionSuccessRateSensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):  # type: ignore[misc]
+class GoveeConnectionSuccessRateSensor(GoveeSensorEntity):  # type: ignore[misc]
     _attr_native_unit_of_measurement = PERCENTAGE
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: GoveeCoordinator, config_entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
+        super().__init__(coordinator, config_entry)
         self._attr_unique_id = f"{config_entry.unique_id}_connection_success_rate"
         self._attr_name = f"{coordinator.device_name} Connection Success Rate"
 
@@ -60,12 +93,12 @@ class GoveeConnectionSuccessRateSensor(CoordinatorEntity[GoveeCoordinator], Sens
         return self.coordinator.data.connection_success_rate  # type: ignore[no-any-return]
 
 
-class GoveeLastPollSensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):  # type: ignore[misc]
+class GoveeLastPollSensor(GoveeSensorEntity):  # type: ignore[misc]
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: GoveeCoordinator, config_entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
+        super().__init__(coordinator, config_entry)
         self._attr_unique_id = f"{config_entry.unique_id}_last_poll"
         self._attr_name = f"{coordinator.device_name} Last Poll"
 
@@ -74,11 +107,11 @@ class GoveeLastPollSensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):  #
         return self.coordinator.data.last_poll_time  # type: ignore[no-any-return]
 
 
-class GoveeConnectionStateSensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):  # type: ignore[misc]
+class GoveeConnectionStateSensor(GoveeSensorEntity):  # type: ignore[misc]
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: GoveeCoordinator, config_entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
+        super().__init__(coordinator, config_entry)
         self._attr_unique_id = f"{config_entry.unique_id}_connection_state"
         self._attr_name = f"{coordinator.device_name} Connection State"
 
@@ -87,12 +120,12 @@ class GoveeConnectionStateSensor(CoordinatorEntity[GoveeCoordinator], SensorEnti
         return self.coordinator.data.connection_state  # type: ignore[no-any-return]
 
 
-class GoveeTotalReconnectionsSensor(CoordinatorEntity[GoveeCoordinator], SensorEntity):  # type: ignore[misc]
+class GoveeTotalReconnectionsSensor(GoveeSensorEntity):  # type: ignore[misc]
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
 
     def __init__(self, coordinator: GoveeCoordinator, config_entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
+        super().__init__(coordinator, config_entry)
         self._attr_unique_id = f"{config_entry.unique_id}_total_reconnections"
         self._attr_name = f"{coordinator.device_name} Total Reconnections"
 
