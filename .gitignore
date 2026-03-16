@@ -16,3 +16,4 @@ logs/security/
 .ruff_cache/
 .pytest_cache/
 .continue/
+.planning/
