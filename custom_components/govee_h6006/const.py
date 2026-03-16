@@ -38,6 +38,20 @@ MODEL_REGISTRY = {
             "scene_modes": False,
         },
     },
+    "H6009": {
+        "name": "Govee H6009",
+        "discovery_prefix": "ihoment_H6009",
+        "write_uuid": "00010203-0405-0607-0809-0a0b0c0d2b11",
+        "read_uuid": "00010203-0405-0607-0809-0a0b0c0d2b10",
+        "min_kelvin": 2700,
+        "max_kelvin": 6500,
+        "protocol_class": "H6009Protocol",
+        "capabilities": {
+            "color_temp": True,
+            "music_sync": True,
+            "scene_modes": True,
+        },
+    },
 }
 
 # Options flow configuration constants
