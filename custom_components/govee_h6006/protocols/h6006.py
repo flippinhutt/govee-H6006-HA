@@ -159,7 +159,7 @@ class H6006Protocol(GoveeProtocol):
                     result["color_rgb"] = (frame[3], frame[4], frame[5])
                     _LOGGER.debug(f"Notification: color_rgb={result['color_rgb']}")
             # Return empty dict for unknown commands (valid packet, but no state updates)
-            # Return the dict even if empty to distinguish from invalid packets (None)
+            # The API layer distinguishes between None (invalid) and {} (valid but unknown)
             return result
         except Exception as err:
             _LOGGER.error(f"Error parsing notification: {err}")

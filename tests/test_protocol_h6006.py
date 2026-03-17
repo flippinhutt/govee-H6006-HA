@@ -290,13 +290,13 @@ def test_parse_notification_too_short():
 
 
 def test_parse_notification_unknown_command():
-    """Unknown command should return None (empty result dict)"""
+    """Unknown command should return empty dict (valid packet, no state)"""
     protocol = H6006Protocol()
     frame = bytearray([0xAA, 0xFF, 0x00] + [0] * 17)  # Unknown command 0xFF
     frame[19] = _calculate_checksum(frame[:19])
 
     result = protocol.parse_notification(frame)
-    assert result is None
+    assert result == {}  # Empty dict, not None (packet is valid, just unknown)
 
 
 def test_all_packets_are_20_bytes():
