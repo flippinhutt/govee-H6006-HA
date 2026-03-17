@@ -421,3 +421,78 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
             # Wait before next update (unless this is the last step)
             if step < steps:
                 await asyncio.sleep(TRANSITION_UPDATE_INTERVAL)
+
+    async def set_color_temp_with_transition(self, kelvin: int, transition: float) -> None:
+        """Set color temperature with smooth transition.
+
+        Args:
+            kelvin: Target color temperature in Kelvin (2700-6500).
+            transition: Transition duration in seconds.
+
+        Raises:
+            HomeAssistantError: If command execution fails.
+        """
+        # Cancel any active transition
+        self._cancel_transition()
+
+        # Clamp transition duration to allowed range
+        transition = max(MIN_TRANSITION_DURATION, min(MAX_TRANSITION_DURATION, transition))
+
+        # If transition is very short or no current color temp, fall back to instant change
+        if transition < MIN_TRANSITION_DURATION or self._api.color_temp is None:
+            await self.set_color_temp(kelvin)
+            return
+
+        # Create and track transition task
+        self._transition_task = asyncio.create_task(
+            self._run_color_temp_transition(kelvin, transition)
+        )
+
+        try:
+            await self._transition_task
+        except asyncio.CancelledError:
+            _LOGGER.debug("Color temperature transition cancelled")
+            # Don't raise - cancellation is expected when a new command arrives
+
+    async def _run_color_temp_transition(self, target: int, duration: float) -> None:
+        """Run color temperature transition interpolation.
+
+        Args:
+            target: Target color temperature in Kelvin (2700-6500).
+            duration: Transition duration in seconds.
+        """
+        start = self._api.color_temp
+        if start is None:
+            return
+
+        # Calculate number of steps
+        steps = int(duration / TRANSITION_UPDATE_INTERVAL)
+        if steps < 1:
+            steps = 1
+
+        # Interpolate and send intermediate values
+        for step in range(1, steps + 1):
+            # Linear interpolation
+            progress = step / steps
+            interpolated = int(start + (target - start) * progress)
+
+            # Send color temp command (without optimistic update to avoid flicker)
+            prev_color_rgb = self._api.color_rgb
+            prev_color_temp = self._api.color_temp
+            try:
+                await self._api.set_color_temp(interpolated)
+                # Update internal state
+                self._api.color_temp = interpolated
+                self._api.color_rgb = None  # clear RGB when color temp is set
+                self.async_set_updated_data(self._snapshot())
+            except Exception as err:
+                _LOGGER.warning(f"Failed to send transition step: {err}")
+                # Rollback and abort transition
+                self._api.color_rgb = prev_color_rgb
+                self._api.color_temp = prev_color_temp
+                self.async_set_updated_data(self._snapshot())
+                return
+
+            # Wait before next update (unless this is the last step)
+            if step < steps:
+                await asyncio.sleep(TRANSITION_UPDATE_INTERVAL)
