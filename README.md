@@ -30,8 +30,22 @@ Detailed documentation is available in the `docs/` folder:
 
 ### Supported Devices
 
-Currently supports:
-- **Govee H6006** (advertises as `ihoment_*`)
+This integration supports the following Govee BLE bulb models:
+
+| Model | Discovery Prefix | Power | Brightness | RGB | Color Temp | Range | Additional Features |
+|-------|-----------------|-------|------------|-----|------------|-------|---------------------|
+| **H6006** | `ihoment_H6006` | ✅ | ✅ | ✅ | ✅ | 2700K-6500K | RGBWW, 800 lm, 9W |
+| **H6008** | `ihoment_H6008` | ✅ | ✅ | ✅ | ✅ | 2700K-6500K | RGBWW, 800 lm, 9W |
+| **H6009** | `ihoment_H6009` | ✅ | ✅ | ✅ | ✅ | 2700K-6500K | RGBWW, 1200 lm, 12W, Music Sync*, Scene Modes* |
+| **H6003** | `ihoment_H6003` | ✅ | ✅ | ✅ | ❌ | N/A | RGB only, 800 lm, 9W |
+
+*\*Music Sync and Scene Modes support is planned but not yet implemented in the current release.*
+
+**Notes:**
+- All models are auto-discovered via Bluetooth using their respective discovery prefixes
+- H6006 protocol is hardware-verified; H6008, H6009, and H6003 are based on protocol research and expected to be compatible
+- All RGBWW models (H6006, H6008, H6009) support the full color temperature range of 2700K-6500K
+- H6003 is RGB-only and does not support color temperature control
 
 ## Installation
 

@@ -1,6 +1,7 @@
 DOMAIN = "govee_h6006"
-DISCOVERY_NAME = "ihoment_"
 
+# Legacy constants (kept for backward compatibility during transition)
+DISCOVERY_NAME = "ihoment_"
 WRITE_CHARACTERISTIC_UUID = "00010203-0405-0607-0809-0a0b0c0d2b11"
 READ_CHARACTERISTIC_UUID = "00010203-0405-0607-0809-0a0b0c0d2b10"
 
@@ -12,6 +13,67 @@ MANUFACTURER_NAME_UUID = "00002a29-0000-1000-8000-00805f9b34fb"
 
 MIN_KELVIN = 2700
 MAX_KELVIN = 6500
+
+# Multi-model registry mapping model identifiers to their metadata
+# This is the single source of truth for supported models
+MODEL_REGISTRY = {
+    "H6006": {
+        "name": "Govee H6006",
+        "discovery_prefix": "ihoment_H6006",
+        "write_uuid": "00010203-0405-0607-0809-0a0b0c0d2b11",
+        "read_uuid": "00010203-0405-0607-0809-0a0b0c0d2b10",
+        "min_kelvin": 2700,
+        "max_kelvin": 6500,
+        "protocol_class": "H6006Protocol",
+        "capabilities": {
+            "color_temp": True,
+            "music_sync": False,
+            "scene_modes": False,
+        },
+    },
+    "H6008": {
+        "name": "Govee H6008",
+        "discovery_prefix": "ihoment_H6008",
+        "write_uuid": "00010203-0405-0607-0809-0a0b0c0d2b11",
+        "read_uuid": "00010203-0405-0607-0809-0a0b0c0d2b10",
+        "min_kelvin": 2700,
+        "max_kelvin": 6500,
+        "protocol_class": "H6008Protocol",
+        "capabilities": {
+            "color_temp": True,
+            "music_sync": False,
+            "scene_modes": False,
+        },
+    },
+    "H6009": {
+        "name": "Govee H6009",
+        "discovery_prefix": "ihoment_H6009",
+        "write_uuid": "00010203-0405-0607-0809-0a0b0c0d2b11",
+        "read_uuid": "00010203-0405-0607-0809-0a0b0c0d2b10",
+        "min_kelvin": 2700,
+        "max_kelvin": 6500,
+        "protocol_class": "H6009Protocol",
+        "capabilities": {
+            "color_temp": True,
+            "music_sync": True,
+            "scene_modes": True,
+        },
+    },
+    "H6003": {
+        "name": "Govee H6003",
+        "discovery_prefix": "ihoment_H6003",
+        "write_uuid": "00010203-0405-0607-0809-0a0b0c0d2b11",
+        "read_uuid": "00010203-0405-0607-0809-0a0b0c0d2b10",
+        "min_kelvin": None,
+        "max_kelvin": None,
+        "protocol_class": "H6003Protocol",
+        "capabilities": {
+            "color_temp": False,
+            "music_sync": False,
+            "scene_modes": False,
+        },
+    },
+}
 
 # Options flow configuration constants
 DEFAULT_POLLING_INTERVAL = 30

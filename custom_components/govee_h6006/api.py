@@ -14,7 +14,9 @@ from bleak_retry_connector import establish_connection
 from .const import (
     FIRMWARE_REVISION_UUID,
     HARDWARE_REVISION_UUID,
+    MAX_KELVIN,
     MAX_RECONNECT_ATTEMPTS,
+    MIN_KELVIN,
     MODEL_NUMBER_UUID,
     READ_CHARACTERISTIC_UUID,
     RECONNECT_BACKOFF_BASE,
@@ -22,9 +24,24 @@ from .const import (
     RECONNECT_COOLDOWN_SECONDS,
     WRITE_CHARACTERISTIC_UUID,
 )
-from .protocols.base import GoveeProtocol
+from .protocols import GoveeProtocol, H6003Protocol, H6006Protocol, H6008Protocol, H6009Protocol
 
 _LOGGER = logging.getLogger(__name__)
+
+_REQUEST_HEAD = 0xAA
+_POWER_CMD = 0x01
+_BRIGHTNESS_CMD = 0x04
+_COLOR_CMD = 0x05
+
+
+def _build_query(cmd: int) -> bytes:
+    """Build a 20-byte state-query packet (head=0xAA) for the given command."""
+    frame = [_REQUEST_HEAD, cmd & 0xFF] + [0] * 17
+    checksum = 0
+    for b in frame:
+        checksum ^= b
+    frame.append(checksum & 0xFF)
+    return bytes(frame)
 
 
 class GoveeAPI:
@@ -49,27 +66,26 @@ class GoveeAPI:
         self,
         ble_device: BLEDevice,
         update_callback: Callable[[], Awaitable[None]],
-        protocol: GoveeProtocol,
         timeout: float = 20.0,
         max_attempts: int = 5,
         suppression_window: int = 500,
+        model_type: str = "H6006",
     ) -> None:
         """Initialize the Govee API client.
 
         Args:
             ble_device: The Bluetooth device to connect to.
             update_callback: Async callback executed when device state changes.
-            protocol: Protocol implementation for packet building and parsing.
             timeout: BLE operation timeout in seconds.
             max_attempts: Maximum number of connection attempts.
             suppression_window: Time in ms to suppress notifications after a command.
+            model_type: Model identifier (e.g., "H6006", "H6008", "H6009", "H6003").
         """
         self._ble_device = ble_device
         self._update_callback = update_callback
         self._timeout = timeout
         self._max_attempts = max_attempts
         self._suppression_window = suppression_window
-        self._protocol = protocol
         self._last_callback_time = 0.0
         self._client: BleakClient | None = None
         self._connect_lock = asyncio.Lock()
@@ -93,6 +109,15 @@ class GoveeAPI:
         self._connection_attempts: deque[bool] = deque(maxlen=10)
         self.last_poll_time: float | None = None  # Timestamp of last successful poll
         self.total_reconnections: int = 0  # Total number of successful reconnections
+
+        # Map model_type to protocol class
+        protocol_map: dict[str, type[GoveeProtocol]] = {
+            "H6006": H6006Protocol,
+            "H6008": H6008Protocol,
+            "H6009": H6009Protocol,
+            "H6003": H6003Protocol,
+        }
+        self._protocol = protocol_map.get(model_type, H6006Protocol)
 
     @property
     def address(self) -> str:
@@ -290,22 +315,6 @@ class GoveeAPI:
             # Capture RSSI on successful connection
             self.rssi = self._ble_device.rssi
 
-    def _build_query(self, cmd: int) -> bytes:
-        """Build a 20-byte state-query packet using the protocol's REQUEST_HEAD.
-
-        Args:
-            cmd: The command byte to query (e.g., 0x01 for power).
-
-        Returns:
-            A 20-byte query packet with XOR checksum.
-        """
-        frame = [self._protocol.REQUEST_HEAD, cmd & 0xFF] + [0] * 17
-        checksum = 0
-        for b in frame:
-            checksum ^= b
-        frame.append(checksum & 0xFF)
-        return bytes(frame)
-
     async def _write(self, packet: bytes) -> None:
         """Write a packet to the device's write characteristic.
 
@@ -322,51 +331,65 @@ class GoveeAPI:
     async def _handle_notification(
         self, characteristic: BleakGATTCharacteristic | None, frame: bytearray
     ) -> None:
+        if len(frame) < 20:
+            return
+        xor = 0
+        for b in frame[:19]:
+            xor ^= b
+        if (xor & 0xFF) != frame[19]:
+            _LOGGER.warning("Received packet with bad checksum, discarding")
+            return
+        if frame[0] != _REQUEST_HEAD:
+            return
+
         # Suppress notifications for 500ms after sending a command
         # This prevents the device's old state from overwriting optimistic updates
         if time.time() < self._suppress_update_until:
             _LOGGER.debug("Suppressing notification (recent command in flight)")
             return
 
-        # Parse notification using protocol
-        # None = invalid packet (bad checksum, wrong format, etc.) - discard it
-        # {} = valid packet but unknown/unhandled command - still notify
-        # {fields} = valid packet with state updates
-        parsed = self._protocol.parse_notification(frame)
-        if parsed is None:
-            return
+        try:
+            cmd = frame[1]
+            if cmd == _POWER_CMD:
+                self.state = frame[2] == 0x01
+                _LOGGER.debug(f"Notification: power={self.state}")
+            elif cmd == _BRIGHTNESS_CMD:
+                self.brightness = frame[2]
+                _LOGGER.debug(f"Notification: brightness={self.brightness}")
+            elif cmd == _COLOR_CMD:
+                # Detect white mode by checking if R, G, B are all 0xFF
+                is_white_mode = frame[3] == 0xFF and frame[4] == 0xFF and frame[5] == 0xFF
+                if is_white_mode:
+                    warm = frame[7]
+                    self.color_temp = round(MAX_KELVIN - (warm / 255) * (MAX_KELVIN - MIN_KELVIN))
+                    self.color_rgb = None  # clear stale RGB
+                    _LOGGER.debug(f"Notification: color_temp={self.color_temp}K (white mode)")
+                else:
+                    self.color_rgb = (frame[3], frame[4], frame[5])
+                    self.color_temp = None  # clear stale color temp
+                    _LOGGER.debug(f"Notification: color_rgb={self.color_rgb}")
 
-        # Update internal state from parsed values (may be empty for unknown commands)
-        if "power" in parsed:
-            self.state = parsed["power"]
-        if "brightness" in parsed:
-            self.brightness = parsed["brightness"]
-        if "color_rgb" in parsed:
-            self.color_rgb = parsed["color_rgb"]
-            self.color_temp = None  # clear stale color temp
-        if "color_temp" in parsed:
-            self.color_temp = parsed["color_temp"]
-            self.color_rgb = None  # clear stale RGB
-
-        # Throttle callbacks based on suppression window
-        current_time = time.time() * 1000  # convert to milliseconds
-        if current_time - self._last_callback_time >= self._suppression_window:
-            await self._update_callback()
-            self._last_callback_time = current_time
-        # else: notification suppressed (too soon after last callback)
+            # Throttle callbacks based on suppression window
+            current_time = time.time() * 1000  # convert to milliseconds
+            if current_time - self._last_callback_time >= self._suppression_window:
+                await self._update_callback()
+                self._last_callback_time = current_time
+            # else: notification suppressed (too soon after last callback)
+        except Exception as err:
+            _LOGGER.error(f"Error handling notification: {err}")
 
     async def poll_state(self) -> None:
-        """Request current device state from the device.
+        """Request current power, brightness, and color state from the device.
 
-        Sends state-query commands as defined by the protocol. Responses
+        Sends state-query commands for power, brightness, and color. Responses
         will flow back via the notification handler.
         """
         await self._ensure_connected()
         assert self._client is not None  # _ensure_connected raises if connection fails
         _LOGGER.debug("Polling device state")
-        for cmd in self._protocol.get_poll_commands():
+        for cmd in (_POWER_CMD, _BRIGHTNESS_CMD, _COLOR_CMD):
             await self._client.write_gatt_char(
-                WRITE_CHARACTERISTIC_UUID, self._build_query(cmd), False
+                WRITE_CHARACTERISTIC_UUID, _build_query(cmd), False
             )
         # Record timestamp of successful poll
         self.last_poll_time = time.time()
@@ -416,7 +439,7 @@ class GoveeAPI:
             on: True to turn on, False to turn off.
         """
         _LOGGER.debug(f"Sending power command: on={on}")
-        await self._write(self._protocol.build_power_packet(on))
+        await self._write(self._protocol.power(on))
 
     async def set_brightness(self, value: int) -> None:
         """Set the brightness level of the device.
@@ -425,7 +448,7 @@ class GoveeAPI:
             value: Brightness level (0-255).
         """
         _LOGGER.debug(f"Sending brightness command: value={value}")
-        await self._write(self._protocol.build_brightness_packet(value))
+        await self._write(self._protocol.brightness(value))
 
     async def set_color_rgb(self, r: int, g: int, b: int) -> None:
         """Set the RGB color of the device.
@@ -436,13 +459,20 @@ class GoveeAPI:
             b: Blue value (0-255).
         """
         _LOGGER.debug(f"Sending RGB command: r={r}, g={g}, b={b}")
-        await self._write(self._protocol.build_color_rgb_packet(r, g, b))
+        await self._write(self._protocol.color_rgb(r, g, b))
 
     async def set_color_temp(self, kelvin: int) -> None:
         """Set the color temperature of the device.
 
         Args:
             kelvin: Color temperature in Kelvin (2700-6500).
+
+        Raises:
+            NotImplementedError: If the model doesn't support color temperature.
         """
+        if not self._protocol.HAS_COLOR_TEMP:
+            raise NotImplementedError(
+                f"{self._protocol.MODEL_NAME} does not support color temperature control"
+            )
         _LOGGER.debug(f"Sending color temp command: kelvin={kelvin}")
-        await self._write(self._protocol.build_color_temp_packet(kelvin))
+        await self._write(self._protocol.color_temp(kelvin))

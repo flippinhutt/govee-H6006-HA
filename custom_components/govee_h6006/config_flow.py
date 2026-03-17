@@ -16,7 +16,6 @@ from .const import (
     DEFAULT_MAX_RETRIES,
     DEFAULT_POLLING_INTERVAL,
     DEFAULT_SUPPRESSION_WINDOW,
-    DISCOVERY_NAME,
     DOMAIN,
     MAX_CONNECTION_TIMEOUT,
     MAX_MAX_RETRIES,
@@ -26,6 +25,7 @@ from .const import (
     MIN_MAX_RETRIES,
     MIN_POLLING_INTERVAL,
     MIN_SUPPRESSION_WINDOW,
+    MODEL_REGISTRY,
 )
 
 
@@ -38,6 +38,21 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
         """Initialize config flow."""
         self._discovery_info: BluetoothServiceInfoBleak | None = None
         self._discovered_devices: dict[str, BluetoothServiceInfoBleak] = {}
+
+    @staticmethod
+    def _detect_model(device_name: str) -> str | None:
+        """Detect model type from device name.
+
+        Args:
+            device_name: The Bluetooth device name (e.g., "ihoment_H6006_1234").
+
+        Returns:
+            Model identifier (e.g., "H6006") or None if no match.
+        """
+        for model_id, model_info in MODEL_REGISTRY.items():
+            if device_name.startswith(model_info["discovery_prefix"]):
+                return model_id
+        return None
 
     @staticmethod
     @callback
@@ -75,11 +90,14 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
         if self._discovery_info is None:
             return self.async_abort(reason="no_devices_found")
         if user_input is not None:
+            # Detect model from device name
+            model = self._detect_model(self._discovery_info.name)
             return self.async_create_entry(  # type: ignore[no-any-return]
                 title=self._discovery_info.name,
                 data={
                     "address": self._discovery_info.address,
                     "name": self._discovery_info.name,
+                    "model": model,
                 },
             )
         return self.async_show_form(  # type: ignore[no-any-return]
@@ -102,11 +120,12 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
             return await self.async_step_bluetooth_confirm()
 
         current_addresses = self._async_current_ids()
-        # connectable=True — H6006 requires an active GATT connection, not passive advertising
+        # connectable=True — All Govee models require an active GATT connection, not passive advertising
         for info in async_discovered_service_info(self.hass, connectable=True):
             if info.address in current_addresses or info.address in self._discovered_devices:
                 continue
-            if not info.name.startswith(DISCOVERY_NAME):
+            # Check if device name matches any supported model's discovery prefix
+            if self._detect_model(info.name) is None:
                 continue
             self._discovered_devices[info.address] = info
 

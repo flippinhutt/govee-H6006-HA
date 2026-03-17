@@ -4,9 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-HACS custom integration for the Govee H6006 light bulb. This integration uses **Bluetooth Low Energy (BLE) only** — not WiFi — for local-only control with zero cloud dependency. The H6006 device supports both BLE and WiFi, but we deliberately use BLE to avoid cloud connectivity requirements. Targets Home Assistant with `bleak` + `bleak-retry-connector` for BLE communication.
+HACS custom integration for Govee H60xx series light bulbs (H6006, H6008, H6009, H6003). This integration uses **Bluetooth Low Energy (BLE) only** — not WiFi — for local-only control with zero cloud dependency. These devices support both BLE and WiFi, but we deliberately use BLE to avoid cloud connectivity requirements. Targets Home Assistant with `bleak` + `bleak-retry-connector` for BLE communication.
 
-Domain: `govee_h6006`. Discovery prefix: `ihoment_*`.
+**Supported Models:**
+- **H6006** (RGBWW, 800 lm, 9W) — Hardware-verified baseline
+- **H6008** (RGBWW, 800 lm, 9W) — Protocol research verified
+- **H6009** (RGBWW, 1200 lm, 12W) — Protocol research verified, music sync + scenes
+- **H6003** (RGB, 800 lm, 9W) — Protocol research verified, RGB-only (no color temp)
+
+Domain: `govee_h6006`. Discovery prefixes: `ihoment_H6006`, `ihoment_H6008`, `ihoment_H6009`, `ihoment_H6003`.
 
 ## Commands
 
@@ -83,19 +89,25 @@ Once installed, ruff and mypy will run automatically on staged files before each
 custom_components/govee_h6006/
 ├── protocols/           # Pluggable protocol layer
 │   ├── base.py         # GoveeProtocol — abstract interface for all protocols
-│   ├── h6006.py        # H6006Protocol — packet building & parsing for H6006
-│   └── __init__.py     # Protocol registry & get_protocol() factory
+│   ├── h6006.py        # H6006Protocol — packet building for H6006
+│   ├── h6008.py        # H6008Protocol — packet building for H6008
+│   ├── h6009.py        # H6009Protocol — packet building for H6009
+│   ├── h6003.py        # H6003Protocol — packet building for H6003
+│   └── __init__.py     # Protocol exports
 ├── api.py              # GoveeAPI — BLE connection, writes commands via protocol, device info queries
 ├── coordinator.py      # GoveeCoordinator (DataUpdateCoordinator) — polls every 30s, proxies commands
-├── config_flow.py      # Bluetooth discovery + manual user setup flow
+├── config_flow.py      # Multi-model Bluetooth discovery + manual setup flow
 ├── light.py            # GoveeLight (LightEntity) — RGB + color temp modes
-├── const.py            # UUIDs (GATT + BLE DIS), domain, kelvin range
+├── const.py            # MODEL_REGISTRY, UUIDs (GATT + BLE DIS), domain, kelvin range
+├── sensor.py           # Diagnostic sensors (connection state, RSSI, firmware version)
 └── translations/       # UI strings
 ```
 
-**Protocol abstraction:** The integration uses a pluggable protocol architecture to support multiple Govee models. Each protocol implements the `GoveeProtocol` interface (abstract methods for power, brightness, RGB, color temp commands + notification parsing). The H6006 protocol builds 20-byte packets with command frames (head `0x33`) and parses notifications (head `0xAA`) with XOR checksum validation. Protocol selection happens automatically via `get_protocol(device_name)` based on device name prefix (e.g., `ihoment_*` → `H6006Protocol`).
+**Multi-model protocol architecture:** The integration uses a pluggable protocol system to support multiple Govee models (H6006, H6008, H6009, H6003). Each protocol class implements the `GoveeProtocol` interface with static methods for command packet building (power, brightness, RGB, color temp). Protocol selection happens automatically based on the `model_type` config entry field. All protocols build 20-byte packets with command frames (head `0x33`) and XOR checksum validation.
 
-**Data flow:** `LightEntity` -> `GoveeCoordinator` -> selects protocol via `get_protocol()` -> `GoveeAPI(protocol)` -> `protocol.build_*_packet()` -> BLE write. Notifications flow back via `_handle_notification` -> `protocol.parse_notification()` -> `coordinator.async_set_updated_data`.
+**Two packet heads:** Command frames use `0x33` (built by protocol classes). Query/response frames use `0xAA` (built/parsed in `api.py`). Both are 20 bytes with XOR checksum in the last byte.
+
+**Data flow:** `LightEntity` -> `GoveeCoordinator` -> `GoveeAPI(model_type)` -> Protocol class static methods -> BLE write. Notifications flow back via `_handle_notification` callback -> `coordinator.async_set_updated_data`.
 
 **Adding new models:** See `docs/adding_new_models.md` for a complete guide on creating new protocol classes for additional Govee models.
 

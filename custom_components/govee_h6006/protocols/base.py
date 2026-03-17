@@ -2,100 +2,92 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import ClassVar
 
 
 class GoveeProtocol(ABC):
     """Abstract base class for Govee BLE device protocols.
 
-    Each Govee device model may have its own protocol implementation with
-    different packet structures, command heads, or notification parsing logic.
-    Concrete implementations override the abstract methods to provide
-    model-specific command building and state parsing.
+    Defines the interface that all protocol implementations must provide,
+    along with capability flags that control feature availability.
 
     Attributes:
-        COMMAND_HEAD: Packet header byte for commands (e.g., 0x33 for H6006).
-        REQUEST_HEAD: Packet header byte for state queries/responses (e.g., 0xAA for H6006).
+        MODEL_NAME: Human-readable model name (e.g., "H6006")
+        DISCOVERY_PREFIX: BLE advertising name prefix (e.g., "ihoment_H6006")
+        HAS_COLOR_TEMP: Whether model supports color temperature control
+        HAS_MUSIC_SYNC: Whether model supports music sync mode (H6009)
+        HAS_SCENE_MODES: Whether model supports preset scene modes (H6009)
+        MIN_KELVIN: Minimum color temperature in Kelvin (if HAS_COLOR_TEMP)
+        MAX_KELVIN: Maximum color temperature in Kelvin (if HAS_COLOR_TEMP)
     """
 
-    COMMAND_HEAD: int
-    REQUEST_HEAD: int
+    MODEL_NAME: ClassVar[str]
+    DISCOVERY_PREFIX: ClassVar[str]
+    HAS_COLOR_TEMP: ClassVar[bool] = False
+    HAS_MUSIC_SYNC: ClassVar[bool] = False
+    HAS_SCENE_MODES: ClassVar[bool] = False
+    MIN_KELVIN: ClassVar[int] = 2700
+    MAX_KELVIN: ClassVar[int] = 6500
 
+    @staticmethod
     @abstractmethod
-    def build_power_packet(self, on: bool) -> bytes:
+    def power(on: bool) -> bytes:
         """Build a power command packet.
 
         Args:
-            on: True to turn on, False to turn off.
+            on: True for turn on, False for turn off.
 
         Returns:
-            A complete BLE packet ready to send to the device.
+            20-byte BLE command packet.
         """
-        pass
 
+    @staticmethod
     @abstractmethod
-    def build_brightness_packet(self, value: int) -> bytes:
+    def brightness(value: int) -> bytes:
         """Build a brightness command packet.
 
         Args:
-            value: Brightness level (typically 0-255).
+            value: Brightness level (0-255).
 
         Returns:
-            A complete BLE packet ready to send to the device.
+            20-byte BLE command packet.
         """
-        pass
 
+    @staticmethod
     @abstractmethod
-    def build_color_rgb_packet(self, r: int, g: int, b: int) -> bytes:
+    def color_rgb(r: int, g: int, b: int) -> bytes:
         """Build an RGB color command packet.
 
         Args:
-            r: Red intensity (typically 0-255).
-            g: Green intensity (typically 0-255).
-            b: Blue intensity (typically 0-255).
+            r: Red intensity (0-255).
+            g: Green intensity (0-255).
+            b: Blue intensity (0-255).
 
         Returns:
-            A complete BLE packet ready to send to the device.
+            20-byte BLE command packet.
         """
-        pass
 
-    @abstractmethod
-    def build_color_temp_packet(self, kelvin: int) -> bytes:
-        """Build a color temperature command packet.
 
-        Args:
-            kelvin: Color temperature in Kelvin (typically 2700-6500).
+def build_frame(cmd: int, payload: list[int]) -> bytes:
+    """Build a 20-byte command packet for the Govee BLE protocol.
 
-        Returns:
-            A complete BLE packet ready to send to the device.
-        """
-        pass
+    This packet builder is shared across all H60xx models as they use
+    identical packet structure (head 0x33, XOR checksum, 20 bytes total).
 
-    @abstractmethod
-    def parse_notification(self, frame: bytearray) -> dict | None:
-        """Parse a notification packet from the device.
+    Args:
+        cmd: The command byte (e.g., 0x01 for power).
+        payload: A list of bytes for the command payload.
 
-        Notifications contain device state updates (power, brightness, color, etc.)
-        sent by the device in response to queries or spontaneously when state changes.
+    Returns:
+        A 20-byte packet with XOR checksum in the final byte.
+    """
+    _PACKET_LEN = 20
+    _CMD_HEAD = 0x33
 
-        Args:
-            frame: Raw notification data received from the device.
-
-        Returns:
-            A dictionary containing parsed state values, or None if the packet
-            is invalid or cannot be parsed. Common keys include:
-            - "power": bool (True=on, False=off)
-            - "brightness": int (0-255)
-            - "color_rgb": tuple[int, int, int] (R, G, B)
-            - "color_temp": int (Kelvin)
-        """
-        pass
-
-    @abstractmethod
-    def get_poll_commands(self) -> list[int]:
-        """Return command IDs to query during polling.
-
-        Returns:
-            A list of command byte values to query for device state.
-            For example, [0x01, 0x04, 0x05] to query power, brightness, and color.
-        """
-        pass
+    frame = [_CMD_HEAD, cmd & 0xFF] + payload
+    frame += [0] * (_PACKET_LEN - 1 - len(frame))
+    checksum = 0
+    for b in frame:
+        checksum ^= b
+    frame.append(checksum & 0xFF)
+    return bytes(frame)

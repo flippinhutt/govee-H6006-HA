@@ -18,7 +18,6 @@ from .const import (
     DEFAULT_SUPPRESSION_WINDOW,
     DOMAIN,
 )
-from .protocols import get_protocol
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,6 +59,7 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
         """
         self.device_address = config_entry.data["address"]
         self.device_name = config_entry.data["name"]
+        model_type = config_entry.data.get("model", "H6006")
 
         ble_device = bluetooth.async_ble_device_from_address(
             hass, self.device_address, connectable=True
@@ -75,16 +75,13 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
             "suppression_window", DEFAULT_SUPPRESSION_WINDOW
         )
 
-        # Select the appropriate protocol based on device name
-        protocol = get_protocol(self.device_name)
-
         self._api = GoveeAPI(
             ble_device,
             self._async_push_data,
-            protocol,
             timeout=connection_timeout,
             max_attempts=max_retries,
             suppression_window=suppression_window,
+            model_type=model_type,
         )
 
         # Query device info on initialization
