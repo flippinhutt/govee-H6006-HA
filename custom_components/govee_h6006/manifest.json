@@ -2,7 +2,10 @@
   "domain": "govee_h6006",
   "name": "Govee H6006 BLE",
   "bluetooth": [
-    { "local_name": "ihoment_*", "connectable": true }
+    { "local_name": "ihoment_H6006*", "connectable": true },
+    { "local_name": "ihoment_H6008*", "connectable": true },
+    { "local_name": "ihoment_H6009*", "connectable": true },
+    { "local_name": "ihoment_H6003*", "connectable": true }
   ],
   "codeowners": ["@flippinhutt"],
   "config_flow": true,

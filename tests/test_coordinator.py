@@ -2,7 +2,6 @@ from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from homeassistant.core import HomeAssistant
 
 from custom_components.govee_h6006.const import DEFAULT_POLLING_INTERVAL
 from custom_components.govee_h6006.coordinator import GoveeCoordinator
@@ -18,12 +17,6 @@ def config_entry():
     entry.options = {}
     entry.unique_id = "AA:BB:CC:DD:EE:FF"
     return entry
-
-
-@pytest.fixture
-def mock_hass():
-    hass = MagicMock(spec=HomeAssistant)
-    return hass
 
 
 @pytest.mark.asyncio
@@ -686,3 +679,72 @@ async def test_coordinator_cancel_transition_does_nothing_when_no_active_task(
         coordinator._cancel_transition()
 
         # No exception should be raised
+
+
+@pytest.mark.asyncio
+async def test_coordinator_queries_device_info_on_init(mock_hass, config_entry, mock_ble_device):
+    """Test that coordinator calls query_device_info during initialization."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as mock_api_class:
+        mock_api = AsyncMock()
+        mock_api.query_device_info = AsyncMock()
+        mock_api_class.return_value = mock_api
+
+        _ = GoveeCoordinator(mock_hass, config_entry)
+
+        # Wait for any async tasks to complete
+        await mock_hass.async_block_till_done()
+
+        # Verify query_device_info was called
+        mock_api.query_device_info.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_coordinator_data_includes_device_info(mock_hass, config_entry, mock_ble_device):
+    """Test that coordinator.data includes device info fields."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as mock_api_class:
+        # Set up mock API with device info
+        mock_api = AsyncMock()
+        mock_api.firmware_version = "1.02.03"
+        mock_api.hardware_version = "HW_V1.0"
+        mock_api.model_number = "H6006"
+        mock_api_class.return_value = mock_api
+
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+        await coordinator.async_config_entry_first_refresh()
+
+        # Verify device info is in coordinator.data
+        assert coordinator.data.firmware_version == "1.02.03"
+        assert coordinator.data.hardware_version == "HW_V1.0"
+        assert coordinator.data.model_number == "H6006"
+
+
+@pytest.mark.asyncio
+async def test_firmware_version_logged_at_info_level(
+    mock_hass, config_entry, mock_ble_device, caplog
+):
+    """Test that firmware version is logged at INFO level."""
+    import logging
+
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as mock_api_class:
+        mock_api = AsyncMock()
+        mock_api.firmware_version = "1.02.03"
+        mock_api.hardware_version = "HW_V1.0"
+        mock_api.model_number = "H6006"
+        mock_api_class.return_value = mock_api
+
+        with caplog.at_level(logging.INFO):
+            _ = GoveeCoordinator(mock_hass, config_entry)
+            await mock_hass.async_block_till_done()
+
+        # Verify INFO log contains firmware version
+        assert "1.02.03" in caplog.text
+        assert "Firmware" in caplog.text or "firmware" in caplog.text

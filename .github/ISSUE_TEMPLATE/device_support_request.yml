@@ -1,0 +1,177 @@
+name: Device Support Request
+description: Request support for a new Govee device model
+title: "[Device Support]: "
+labels: ["device-support", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for requesting support for a new Govee device! Adding support for new models is a community-driven effort.
+
+        **Before submitting:**
+        - Check if support for this device already exists or has been requested
+        - Review CONTRIBUTING.md for guidance on adding device support yourself
+        - Consider providing BLE protocol captures to accelerate implementation (see BLE sniffing tutorial in docs)
+
+        **Note:** This integration uses **Bluetooth Low Energy (BLE) only** for local-only control. If your device only supports WiFi, it may not be compatible with this integration.
+
+  - type: input
+    id: device_model
+    attributes:
+      label: Device Model Number
+      description: The exact Govee model number (usually found on the device or in the Govee app)
+      placeholder: "e.g., H6008, H6143, H6076"
+    validations:
+      required: true
+
+  - type: input
+    id: device_name
+    attributes:
+      label: Device Name/Type
+      description: What type of Govee device is this?
+      placeholder: "e.g., LED Strip Light, Table Lamp, Light Bulb, Floor Lamp"
+    validations:
+      required: true
+
+  - type: input
+    id: product_link
+    attributes:
+      label: Product Link
+      description: Link to the product page (Amazon, Govee website, etc.)
+      placeholder: "https://..."
+    validations:
+      required: false
+
+  - type: dropdown
+    id: connectivity
+    attributes:
+      label: Connectivity
+      description: What connectivity methods does this device support?
+      multiple: true
+      options:
+        - Bluetooth (BLE)
+        - WiFi
+        - Both Bluetooth and WiFi
+        - Unknown/Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: device_features
+    attributes:
+      label: Device Features
+      description: |
+        What features does this device support? Check all that apply and add any additional details.
+      placeholder: |
+        - [ ] On/Off power control
+        - [ ] Brightness adjustment
+        - [ ] RGB color control
+        - [ ] Color temperature (warm/cool white)
+        - [ ] Built-in scenes/effects
+        - [ ] Music sync
+        - [ ] Segmented control (multiple zones)
+        - [ ] Other (please describe):
+    validations:
+      required: true
+
+  - type: dropdown
+    id: ble_protocol_knowledge
+    attributes:
+      label: BLE Protocol Knowledge
+      description: Do you have knowledge of this device's BLE protocol or can you provide BLE captures?
+      options:
+        - "Yes - I can provide BLE protocol captures (nRF Connect, Wireshark, etc.)"
+        - "Yes - I have reverse-engineered some of the protocol commands"
+        - "No - But I'm willing to learn and help with protocol analysis"
+        - "No - Just requesting support"
+    validations:
+      required: true
+
+  - type: textarea
+    id: ble_protocol_details
+    attributes:
+      label: BLE Protocol Details (Optional)
+      description: |
+        If you have BLE protocol information, please share it here:
+        - Service UUIDs
+        - Characteristic UUIDs
+        - Command packet formats
+        - Response packet formats
+        - Any protocol documentation or captures
+
+        **Tip:** Use nRF Connect (mobile app) or Wireshark with Bluetooth capture to analyze the protocol.
+        See the BLE Protocol Sniffing Tutorial in the developer guide.
+      placeholder: |
+        Service UUID: 00010203-0405-0607-0809-0a0b0c0d1910
+        Write Characteristic: 00010203-0405-0607-0809-0a0b0c0d2b11
+        Notify Characteristic: 00010203-0405-0607-0809-0a0b0c0d2b10
+
+        Power On command: 0x33 0x01 0x01 ...
+        Power Off command: 0x33 0x01 0x00 ...
+      render: shell
+
+  - type: textarea
+    id: testing_availability
+    attributes:
+      label: Testing and Validation
+      description: |
+        If support is added for this device, will you be able to test and validate it?
+        Testing with the actual hardware is crucial for ensuring the integration works correctly.
+      placeholder: |
+        - Do you own this device?
+        - Can you test integration changes?
+        - What's your Home Assistant setup?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: home_assistant_experience
+    attributes:
+      label: Home Assistant Experience Level
+      description: What's your experience level with Home Assistant?
+      options:
+        - Beginner - New to Home Assistant
+        - Intermediate - Comfortable with basic configuration
+        - Advanced - Familiar with custom components and YAML
+        - Developer - Can contribute code/PRs
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution Interest
+      description: How would you like to help with adding support for this device?
+      options:
+        - label: I can provide BLE protocol captures from the Govee app
+        - label: I'm willing to test integration changes with my device
+        - label: I'm interested in learning how to add device support myself
+        - label: I can submit a pull request if given guidance on the protocol
+        - label: I can help document the device's features and behavior
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional Information
+      description: |
+        Any other details that might be helpful:
+        - Known issues or quirks with the device
+        - Comparison to similar Govee models
+        - Screenshots from the Govee app
+        - Links to existing integrations (other platforms/projects)
+      placeholder: |
+        Any other relevant information...
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+        **Next Steps:**
+
+        1. **If you have BLE protocol details:** A developer can use your information to add support
+        2. **If you can provide BLE captures:** See the [BLE Protocol Sniffing Tutorial](../docs/BLE_PROTOCOL_SNIFFING.md) in the developer guide
+        3. **If you want to add support yourself:** Check out [CONTRIBUTING.md](../CONTRIBUTING.md) for step-by-step instructions
+        4. **If you just want to request support:** That's fine too! Community members may pick up this request
+
+        Thank you for helping expand device support! 🚀

@@ -1,0 +1,93 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for the Govee H6006 BLE integration
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting a feature! Please provide as much detail as possible to help us understand your request.
+
+        **Before submitting:**
+        - Check if a similar feature request already exists
+        - For new device model support, please use the "Device Support Request" template instead
+        - Consider whether you'd be willing to contribute this feature yourself (see CONTRIBUTING.md)
+
+  - type: dropdown
+    id: feature_category
+    attributes:
+      label: Feature Category
+      description: What type of feature are you requesting?
+      options:
+        - New capability for existing H6006 support (e.g., scenes, effects, scheduling)
+        - Enhancement to existing functionality (e.g., better error handling, performance)
+        - Integration improvement (e.g., configuration options, UI/UX)
+        - Documentation or developer experience
+        - Other (please explain in description)
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem_statement
+    attributes:
+      label: Problem Statement / Use Case
+      description: |
+        What problem are you trying to solve? What use case would this feature enable?
+        Describe the context and motivation behind your request.
+      placeholder: |
+        I'm trying to...
+        Currently, I have to...
+        This would help me...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed Solution
+      description: |
+        How would you like this feature to work? Be as specific as possible.
+        Include examples of how the feature would be used (e.g., YAML configuration, UI interactions).
+      placeholder: |
+        I propose adding...
+        This would work by...
+        Example usage:
+        ```yaml
+        # Your example here
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives_considered
+    attributes:
+      label: Alternatives Considered
+      description: |
+        Have you considered any alternative solutions or workarounds?
+        Why wouldn't those alternatives work for your use case?
+      placeholder: |
+        I've tried...
+        I considered...
+        The issue with those approaches is...
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional Context
+      description: |
+        Add any other context, screenshots, mockups, or examples that would help illustrate the feature.
+        If you have links to similar features in other integrations, include them here.
+      placeholder: |
+        Screenshots, links, or other relevant information...
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      description: Would you be willing to help implement this feature?
+      options:
+        - label: I'm willing to submit a pull request for this feature
+        - label: I'm willing to help test this feature once implemented
+        - label: I can provide BLE protocol details or captures if needed (for H6006 features)
