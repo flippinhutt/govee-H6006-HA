@@ -11,17 +11,16 @@ from bleak import BleakClient, BLEDevice
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak_retry_connector import establish_connection
 
-from .api_utils import GoveePacket
 from .const import (
-    MAX_KELVIN,
     MAX_RECONNECT_ATTEMPTS,
-    MIN_KELVIN,
+    MODEL_REGISTRY,
     READ_CHARACTERISTIC_UUID,
     RECONNECT_BACKOFF_BASE,
     RECONNECT_BACKOFF_MAX,
     RECONNECT_COOLDOWN_SECONDS,
     WRITE_CHARACTERISTIC_UUID,
 )
+from .protocols import GoveeProtocol, H6003Protocol, H6006Protocol, H6008Protocol, H6009Protocol
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,6 +62,7 @@ class GoveeAPI:
         timeout: float = 20.0,
         max_attempts: int = 5,
         suppression_window: int = 500,
+        model_type: str = "H6006",
     ) -> None:
         """Initialize the Govee API client.
 
@@ -72,6 +72,7 @@ class GoveeAPI:
             timeout: BLE operation timeout in seconds.
             max_attempts: Maximum number of connection attempts.
             suppression_window: Time in ms to suppress notifications after a command.
+            model_type: Model identifier (e.g., "H6006", "H6008", "H6009", "H6003").
         """
         self._ble_device = ble_device
         self._update_callback = update_callback
@@ -97,6 +98,15 @@ class GoveeAPI:
         self._connection_attempts: deque[bool] = deque(maxlen=10)
         self.last_poll_time: float | None = None  # Timestamp of last successful poll
         self.total_reconnections: int = 0  # Total number of successful reconnections
+
+        # Map model_type to protocol class
+        protocol_map: dict[str, type[GoveeProtocol]] = {
+            "H6006": H6006Protocol,
+            "H6008": H6008Protocol,
+            "H6009": H6009Protocol,
+            "H6003": H6003Protocol,
+        }
+        self._protocol = protocol_map.get(model_type, H6006Protocol)
 
     @property
     def address(self) -> str:
@@ -380,7 +390,7 @@ class GoveeAPI:
             on: True to turn on, False to turn off.
         """
         _LOGGER.debug(f"Sending power command: on={on}")
-        await self._write(GoveePacket.power(on))
+        await self._write(self._protocol.power(on))
 
     async def set_brightness(self, value: int) -> None:
         """Set the brightness level of the device.
@@ -389,7 +399,7 @@ class GoveeAPI:
             value: Brightness level (0-255).
         """
         _LOGGER.debug(f"Sending brightness command: value={value}")
-        await self._write(GoveePacket.brightness(value))
+        await self._write(self._protocol.brightness(value))
 
     async def set_color_rgb(self, r: int, g: int, b: int) -> None:
         """Set the RGB color of the device.
@@ -400,13 +410,20 @@ class GoveeAPI:
             b: Blue value (0-255).
         """
         _LOGGER.debug(f"Sending RGB command: r={r}, g={g}, b={b}")
-        await self._write(GoveePacket.color_rgb(r, g, b))
+        await self._write(self._protocol.color_rgb(r, g, b))
 
     async def set_color_temp(self, kelvin: int) -> None:
         """Set the color temperature of the device.
 
         Args:
             kelvin: Color temperature in Kelvin (2700-6500).
+
+        Raises:
+            NotImplementedError: If the model doesn't support color temperature.
         """
+        if not self._protocol.HAS_COLOR_TEMP:
+            raise NotImplementedError(
+                f"{self._protocol.MODEL_NAME} does not support color temperature control"
+            )
         _LOGGER.debug(f"Sending color temp command: kelvin={kelvin}")
-        await self._write(GoveePacket.color_temp(kelvin))
+        await self._write(self._protocol.color_temp(kelvin))
