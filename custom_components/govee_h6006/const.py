@@ -27,3 +27,8 @@ MAX_RECONNECT_ATTEMPTS = 5
 RECONNECT_BACKOFF_BASE = 1.0
 RECONNECT_BACKOFF_MAX = 30.0
 RECONNECT_COOLDOWN_SECONDS = 300  # 5 minutes - allow recovery after cooldown
+
+# Transition constants
+TRANSITION_UPDATE_INTERVAL = 0.1  # seconds - ~10 updates/sec for smooth transitions
+MIN_TRANSITION_DURATION = 0.1  # seconds - minimum transition time
+MAX_TRANSITION_DURATION = 300  # seconds - maximum transition time (5 minutes)
