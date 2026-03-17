@@ -11,12 +11,20 @@ All notable changes to the Govee H6006 Home Assistant integration are documented
 - **Capability-based features** — Protocol classes declare capability flags (`HAS_COLOR_TEMP`, `HAS_MUSIC_SYNC`, `HAS_SCENE_MODES`) to enable/disable features per model
 - **Multi-model auto-discovery** — Config flow now auto-detects all supported models (H6006, H6008, H6009, H6003) via Bluetooth discovery prefixes
 - **Code linting with ruff** — Configured in pyproject.toml with rules for code quality, import sorting, and style consistency
-- **Type checking with mypy** — Strict type checking configured for core modules (api.py, api_utils.py, coordinator.py) to catch bugs at development time
+- **Type checking with mypy** — Strict type checking configured for core modules (api.py, coordinator.py, protocols) to catch bugs at development time
 - **pyproject.toml** — Centralized configuration for ruff and mypy with project-specific rules
 - **Pre-commit hook support** — Optional local setup documented in CLAUDE.md for automatic linting and type checking before commits
+- **Developer guide for adding new models** — Comprehensive documentation (docs/adding_new_models.md) with step-by-step instructions for implementing support for additional Govee models
 - **Firmware version detection** — Query and display device firmware version, hardware revision, and model number via standard BLE Device Information Service (DIS) characteristics. Displayed in Home Assistant device info panel and logged at INFO level on startup for troubleshooting. Gracefully handles missing characteristics by showing 'Unknown'
 
 ### Changed
+- **Pluggable protocol architecture for multi-model support** — Refactored the BLE protocol layer from hardcoded H6006-specific logic into a clean, extensible abstraction. The new architecture introduces:
+  - `protocols/` directory — Organized protocol implementations in a dedicated module
+  - `protocols/base.py` — Abstract `GoveeProtocol` interface defining static methods for all BLE commands (power, brightness, RGB, color temp)
+  - `protocols/h6006.py`, `h6008.py`, `h6009.py`, `h6003.py` — Model-specific protocol implementations with 20-byte packet building and capability flags
+  - `protocols/__init__.py` — Exports all protocol classes for clean imports
+  - **Benefits:** Adding support for new Govee models now requires only creating a new protocol class — no changes to core API or coordinator code. This positions the integration for easy ecosystem growth.
+  - **Migration:** Moved packet building logic from `api_utils.py` (deleted) to protocol classes. All existing functionality preserved with zero user-facing changes.
 - **Config entry structure** — Config entries now include a `model` field to store detected model type (defaults to "H6006" for backward compatibility with existing installations)
 - **GoveeAPI protocol selection** — API now accepts `model_type` parameter and uses appropriate protocol class for command generation
 - **Bluetooth matchers in manifest.json** — Replaced single wildcard pattern with explicit discovery prefixes for each supported model (ihoment_H6006, ihoment_H6008, ihoment_H6009, ihoment_H6003)

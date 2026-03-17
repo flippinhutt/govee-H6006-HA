@@ -87,18 +87,29 @@ Once installed, ruff and mypy will run automatically on staged files before each
 
 ```
 custom_components/govee_h6006/
-├── api_utils.py      # GoveePacket — builds 20-byte BLE command frames (head 0x33)
-├── api.py            # GoveeAPI — BLE connection, writes commands, parses notifications (head 0xAA), device info queries
-├── coordinator.py    # GoveeCoordinator (DataUpdateCoordinator) — polls every 30s, proxies commands
-├── config_flow.py    # Bluetooth discovery + manual user setup flow
-├── light.py          # GoveeLight (LightEntity) — RGB + color temp modes
-├── const.py          # UUIDs (GATT + BLE DIS), domain, kelvin range
-└── translations/     # UI strings
+├── protocols/           # Pluggable protocol layer
+│   ├── base.py         # GoveeProtocol — abstract interface for all protocols
+│   ├── h6006.py        # H6006Protocol — packet building for H6006
+│   ├── h6008.py        # H6008Protocol — packet building for H6008
+│   ├── h6009.py        # H6009Protocol — packet building for H6009
+│   ├── h6003.py        # H6003Protocol — packet building for H6003
+│   └── __init__.py     # Protocol exports
+├── api.py              # GoveeAPI — BLE connection, writes commands via protocol, device info queries
+├── coordinator.py      # GoveeCoordinator (DataUpdateCoordinator) — polls every 30s, proxies commands
+├── config_flow.py      # Multi-model Bluetooth discovery + manual setup flow
+├── light.py            # GoveeLight (LightEntity) — RGB + color temp modes
+├── const.py            # MODEL_REGISTRY, UUIDs (GATT + BLE DIS), domain, kelvin range
+├── sensor.py           # Diagnostic sensors (connection state, RSSI, firmware version)
+└── translations/       # UI strings
 ```
 
-**Two packet heads:** Command frames use `0x33` (built by protocol classes in `protocols.py`). Query/response frames use `0xAA` (built/parsed in `api.py`). Both are 20 bytes with XOR checksum in the last byte.
+**Multi-model protocol architecture:** The integration uses a pluggable protocol system to support multiple Govee models (H6006, H6008, H6009, H6003). Each protocol class implements the `GoveeProtocol` interface with static methods for command packet building (power, brightness, RGB, color temp). Protocol selection happens automatically based on the `model_type` config entry field. All protocols build 20-byte packets with command frames (head `0x33`) and XOR checksum validation.
 
-**Data flow:** `LightEntity` -> `GoveeCoordinator` -> `GoveeAPI` -> Protocol class -> BLE write. Notifications flow back via `_handle_notification` callback -> `coordinator.async_set_updated_data`.
+**Two packet heads:** Command frames use `0x33` (built by protocol classes). Query/response frames use `0xAA` (built/parsed in `api.py`). Both are 20 bytes with XOR checksum in the last byte.
+
+**Data flow:** `LightEntity` -> `GoveeCoordinator` -> `GoveeAPI(model_type)` -> Protocol class static methods -> BLE write. Notifications flow back via `_handle_notification` callback -> `coordinator.async_set_updated_data`.
+
+**Adding new models:** See `docs/adding_new_models.md` for a complete guide on creating new protocol classes for additional Govee models.
 
 **Device info:** Firmware version, hardware revision, and model number are queried from standard BLE Device Information Service (DIS) characteristics on startup. The `GoveeAPI.query_device_info()` method reads these characteristics and stores them as instance attributes. The coordinator calls this method during initialization and logs firmware version at INFO level. Device info is displayed in the Home Assistant device info panel via the `device_info` property on entity classes.
 
@@ -158,20 +169,23 @@ Before working on a task, check that this documentation matches the current code
 
 If you notice discrepancies, update this CLAUDE.md to reflect the current state.
 
-## Summary of previous session
+## Summary of previous sessions
 
-Built a custom HACS integration (govee_h6006) for the Govee H6006 bulb using local BLE only — no cloud.                                                                         
-   
-  What We Built                                                                                                                                                                                                                     
-  - manifest.json — connectable: true (the critical fix over the reference integration), iot_class: local_push                                                                    
+Built a custom HACS integration (govee_h6006) for the Govee H6006 bulb using local BLE only — no cloud.
+
+  What We Built
+  - manifest.json — connectable: true (the critical fix over the reference integration), iot_class: local_push
   - const.py — Domain, UUIDs, kelvin range (2700–6500K)
-  - api_utils.py — 20-byte Govee packet builder (XOR checksum, power/brightness/RGB/color-temp commands)
-  - api.py — Persistent GATT connection via bleak-retry-connector (20s timeout, asyncio.Lock to prevent concurrent connections), notification handler for push state updates, poll_state to query current device state on demand
-  - coordinator.py — DataUpdateCoordinator with BLE push as primary, 30s polling fallback that refreshes the BLE device handle and calls poll_state
+  - protocols/base.py — GoveeProtocol abstract interface defining build_*_packet() and parse_notification() methods
+  - protocols/h6006.py — H6006Protocol implementation (20-byte packets, XOR checksum, power/brightness/RGB/color-temp commands)
+  - protocols/__init__.py — Protocol registry mapping device name prefixes to protocol classes, get_protocol() factory
+  - api.py — Persistent GATT connection via bleak-retry-connector (20s timeout, asyncio.Lock to prevent concurrent connections), notification handler for push state updates, poll_state to query current device state on demand. Uses protocol abstraction for all packet building and parsing.
+  - coordinator.py — DataUpdateCoordinator with BLE push as primary, 30s polling fallback that refreshes the BLE device handle and calls poll_state. Selects protocol via get_protocol(device_name).
   - config_flow.py — Auto-discovery (async_step_bluetooth) + manual user flow; connectable=True throughout
   - light.py — LightEntity supporting RGB + color temp modes
   - __init__.py — Setup/unload entry points
   - translations/en.json, hacs.json — HACS distribution files
+  - docs/adding_new_models.md — Developer guide for adding support for new Govee models via protocol abstraction
 
   Bugs Fixed During Hardware Testing
 
@@ -179,6 +193,15 @@ Built a custom HACS integration (govee_h6006) for the Govee H6006 bulb using loc
   2. All states "Unknown", can't control — _async_update_data returned empty snapshot instead of connecting. Fixed by adding poll_state to the API and making the coordinator
   refresh the BLE device handle + query state on each poll.
 
+  Architecture Refactoring
+
+  Refactored from hardcoded H6006 protocol to pluggable architecture for multi-model support:
+  - Moved packet building from GoveePacket (api_utils.py) to H6006Protocol class
+  - Moved notification parsing from GoveeAPI to H6006Protocol.parse_notification()
+  - Created protocol registry for automatic protocol selection based on device name
+  - Removed api_utils.py module (functionality now in protocol classes)
+  - All existing functionality preserved, no user-facing changes
+
   Test Coverage
 
-  105 tests across all modules, all passing. Coverage: 92.74% (exceeds 90% target).
+  170 tests across all modules, all passing. Coverage: 92% (exceeds 90% target).
