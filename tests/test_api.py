@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from custom_components.govee_h6006.api import GoveeAPI
-from custom_components.govee_h6006.api_utils import GoveePacket
+from custom_components.govee_h6006.protocols.h6006 import H6006Protocol
 
 
 @pytest.fixture
@@ -92,7 +92,8 @@ async def test_notification_updates_state(api, mock_bleak_client, update_callbac
 
     # Simulate a power-state notification from device (clear suppression to simulate real timing)
     api._suppress_update_until = 0.0
-    power_on_response = bytearray(GoveePacket.power(True))
+    protocol = H6006Protocol()
+    power_on_response = bytearray(protocol.build_power_packet(True))
     power_on_response[0] = 0xAA  # REQUEST head = device response
     # Recalculate checksum
     xor = 0

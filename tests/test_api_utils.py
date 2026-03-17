@@ -1,8 +1,9 @@
-from custom_components.govee_h6006.api_utils import GoveePacket
+from custom_components.govee_h6006.protocols.h6006 import H6006Protocol
 
 
 def test_power_on_packet():
-    frame = GoveePacket.power(True)
+    protocol = H6006Protocol()
+    frame = protocol.build_power_packet(True)
     assert len(frame) == 20
     assert frame[0] == 0x33       # COMMAND head
     assert frame[1] == 0x01       # POWER cmd
@@ -11,13 +12,15 @@ def test_power_on_packet():
 
 
 def test_power_off_packet():
-    frame = GoveePacket.power(False)
+    protocol = H6006Protocol()
+    frame = protocol.build_power_packet(False)
     assert frame[2] == 0x00
     assert _valid_checksum(frame)
 
 
 def test_brightness_packet():
-    frame = GoveePacket.brightness(128)
+    protocol = H6006Protocol()
+    frame = protocol.build_brightness_packet(128)
     assert frame[0] == 0x33
     assert frame[1] == 0x04
     assert frame[2] == 128
@@ -25,14 +28,16 @@ def test_brightness_packet():
 
 
 def test_brightness_clamps_to_range():
-    assert GoveePacket.brightness(-1)[2] == 0    # clamps to 0
-    assert GoveePacket.brightness(256)[2] == 255  # clamps to 255
-    assert GoveePacket.brightness(0)[2] == 0      # boundary
-    assert GoveePacket.brightness(255)[2] == 255  # boundary
+    protocol = H6006Protocol()
+    assert protocol.build_brightness_packet(-1)[2] == 0    # clamps to 0
+    assert protocol.build_brightness_packet(256)[2] == 255  # clamps to 255
+    assert protocol.build_brightness_packet(0)[2] == 0      # boundary
+    assert protocol.build_brightness_packet(255)[2] == 255  # boundary
 
 
 def test_rgb_packet():
-    frame = GoveePacket.color_rgb(255, 0, 128)
+    protocol = H6006Protocol()
+    frame = protocol.build_color_rgb_packet(255, 0, 128)
     assert frame[0] == 0x33
     assert frame[1] == 0x05
     assert frame[2] == 0x02       # color mode
@@ -44,22 +49,23 @@ def test_rgb_packet():
 
 def test_rgb_clamps_to_range():
     """RGB values should clamp to [0, 255] range"""
+    protocol = H6006Protocol()
     # Test negative values clamp to 0
-    frame = GoveePacket.color_rgb(-1, -50, -100)
+    frame = protocol.build_color_rgb_packet(-1, -50, -100)
     assert frame[3] == 0    # R clamps to 0
     assert frame[4] == 0    # G clamps to 0
     assert frame[5] == 0    # B clamps to 0
     assert _valid_checksum(frame)
 
     # Test values > 255 clamp to 255
-    frame = GoveePacket.color_rgb(256, 300, 500)
+    frame = protocol.build_color_rgb_packet(256, 300, 500)
     assert frame[3] == 255  # R clamps to 255
     assert frame[4] == 255  # G clamps to 255
     assert frame[5] == 255  # B clamps to 255
     assert _valid_checksum(frame)
 
     # Test boundary values
-    frame = GoveePacket.color_rgb(0, 255, 128)
+    frame = protocol.build_color_rgb_packet(0, 255, 128)
     assert frame[3] == 0    # R at minimum
     assert frame[4] == 255  # G at maximum
     assert frame[5] == 128  # B in range
@@ -68,15 +74,16 @@ def test_rgb_clamps_to_range():
 
 def test_rgb_clamps_individual_channels():
     """Each RGB channel should clamp independently"""
+    protocol = H6006Protocol()
     # R negative, G over max, B in range
-    frame = GoveePacket.color_rgb(-10, 300, 128)
+    frame = protocol.build_color_rgb_packet(-10, 300, 128)
     assert frame[3] == 0    # R clamps to 0
     assert frame[4] == 255  # G clamps to 255
     assert frame[5] == 128  # B unchanged
     assert _valid_checksum(frame)
 
     # R in range, G negative, B over max
-    frame = GoveePacket.color_rgb(100, -5, 260)
+    frame = protocol.build_color_rgb_packet(100, -5, 260)
     assert frame[3] == 100  # R unchanged
     assert frame[4] == 0    # G clamps to 0
     assert frame[5] == 255  # B clamps to 255
@@ -84,7 +91,8 @@ def test_rgb_clamps_individual_channels():
 
 
 def test_color_temp_packet_warm():
-    frame = GoveePacket.color_temp(2700)
+    protocol = H6006Protocol()
+    frame = protocol.build_color_temp_packet(2700)
     assert frame[0] == 0x33
     assert frame[1] == 0x05
     assert frame[2] == 0x02       # color mode
@@ -98,7 +106,8 @@ def test_color_temp_packet_warm():
 
 
 def test_color_temp_packet_cold():
-    frame = GoveePacket.color_temp(6500)
+    protocol = H6006Protocol()
+    frame = protocol.build_color_temp_packet(6500)
     assert frame[7] == 0          # warm = 0 at 6500K
     assert frame[8] == 255        # cold = max at 6500K
     assert _valid_checksum(frame)
@@ -106,7 +115,8 @@ def test_color_temp_packet_cold():
 
 def test_color_temp_clamps_below_minimum():
     """Values below 2700K should clamp to 2700K (warmest)"""
-    frame = GoveePacket.color_temp(2000)
+    protocol = H6006Protocol()
+    frame = protocol.build_color_temp_packet(2000)
     assert frame[0] == 0x33
     assert frame[1] == 0x05
     assert frame[2] == 0x02       # color mode
@@ -121,7 +131,8 @@ def test_color_temp_clamps_below_minimum():
 
 def test_color_temp_clamps_above_maximum():
     """Values above 6500K should clamp to 6500K (coldest)"""
-    frame = GoveePacket.color_temp(7000)
+    protocol = H6006Protocol()
+    frame = protocol.build_color_temp_packet(7000)
     assert frame[0] == 0x33
     assert frame[1] == 0x05
     assert frame[2] == 0x02       # color mode
@@ -136,7 +147,8 @@ def test_color_temp_clamps_above_maximum():
 
 def test_color_temp_midrange():
     """Mid-range value (4600K) should have balanced warm/cold"""
-    frame = GoveePacket.color_temp(4600)
+    protocol = H6006Protocol()
+    frame = protocol.build_color_temp_packet(4600)
     assert frame[0] == 0x33
     assert frame[1] == 0x05
     assert frame[2] == 0x02       # color mode
@@ -154,21 +166,23 @@ def test_color_temp_midrange():
 
 def test_color_temp_extreme_values():
     """Extremely out of range values should still clamp correctly"""
+    protocol = H6006Protocol()
     # Very low value
-    frame_low = GoveePacket.color_temp(0)
+    frame_low = protocol.build_color_temp_packet(0)
     assert frame_low[7] == 255    # warm = max
     assert frame_low[8] == 0      # cold = 0
     assert _valid_checksum(frame_low)
 
     # Very high value
-    frame_high = GoveePacket.color_temp(10000)
+    frame_high = protocol.build_color_temp_packet(10000)
     assert frame_high[7] == 0     # warm = 0
     assert frame_high[8] == 255   # cold = max
     assert _valid_checksum(frame_high)
 
 
 def test_checksum_is_xor_of_first_19_bytes():
-    frame = GoveePacket.power(True)
+    protocol = H6006Protocol()
+    frame = protocol.build_power_packet(True)
     expected = 0
     for b in frame[:19]:
         expected ^= b
