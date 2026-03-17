@@ -288,6 +288,53 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
             await self.set_brightness(value)
             return
 
-        # TODO: Implement interpolation logic in subtask-2-2
-        # For now, just do an instant change
-        await self.set_brightness(value)
+        # Create and track transition task
+        self._transition_task = asyncio.create_task(
+            self._run_brightness_transition(value, transition)
+        )
+
+        try:
+            await self._transition_task
+        except asyncio.CancelledError:
+            _LOGGER.debug("Brightness transition cancelled")
+            # Don't raise - cancellation is expected when a new command arrives
+
+    async def _run_brightness_transition(self, target: int, duration: float) -> None:
+        """Run brightness transition interpolation.
+
+        Args:
+            target: Target brightness level (0-255).
+            duration: Transition duration in seconds.
+        """
+        start = self._api.brightness
+        if start is None:
+            return
+
+        # Calculate number of steps
+        steps = int(duration / TRANSITION_UPDATE_INTERVAL)
+        if steps < 1:
+            steps = 1
+
+        # Interpolate and send intermediate values
+        for step in range(1, steps + 1):
+            # Linear interpolation
+            progress = step / steps
+            interpolated = int(start + (target - start) * progress)
+
+            # Send brightness command (without optimistic update to avoid flicker)
+            prev_brightness = self._api.brightness
+            try:
+                await self._api.set_brightness(interpolated)
+                # Update internal state
+                self._api.brightness = interpolated
+                self.async_set_updated_data(self._snapshot())
+            except Exception as err:
+                _LOGGER.warning(f"Failed to send transition step: {err}")
+                # Rollback and abort transition
+                self._api.brightness = prev_brightness
+                self.async_set_updated_data(self._snapshot())
+                return
+
+            # Wait before next update (unless this is the last step)
+            if step < steps:
+                await asyncio.sleep(TRANSITION_UPDATE_INTERVAL)
