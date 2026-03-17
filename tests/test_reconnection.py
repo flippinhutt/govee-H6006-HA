@@ -18,8 +18,8 @@ def update_callback():
 
 
 @pytest.fixture
-def api(mock_ble_device, update_callback):
-    return GoveeAPI(mock_ble_device, update_callback)
+def api(mock_ble_device, update_callback, h6006_protocol):
+    return GoveeAPI(mock_ble_device, update_callback, h6006_protocol)
 
 
 @pytest.mark.asyncio
@@ -270,9 +270,9 @@ async def test_max_attempts_logs_warning(api, caplog):
 
 
 @pytest.mark.asyncio
-async def test_cooldown_resets_reconnection_counter(mock_ble_device):
+async def test_cooldown_resets_reconnection_counter(mock_ble_device, h6006_protocol):
     """Test that device becomes available again after cooldown period."""
-    api = GoveeAPI(mock_ble_device, AsyncMock())
+    api = GoveeAPI(mock_ble_device, AsyncMock(), h6006_protocol)
 
     # Simulate 5 failed reconnection attempts
     api._reconnect_attempts = 5

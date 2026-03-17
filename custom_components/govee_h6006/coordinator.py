@@ -78,10 +78,10 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
         self._api = GoveeAPI(
             ble_device,
             self._async_push_data,
+            protocol,
             timeout=connection_timeout,
             max_attempts=max_retries,
             suppression_window=suppression_window,
-            protocol=protocol,
         )
 
         polling_interval = config_entry.options.get("polling_interval", DEFAULT_POLLING_INTERVAL)

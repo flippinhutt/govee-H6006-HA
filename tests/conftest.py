@@ -301,3 +301,10 @@ def mock_ble_device():
     device.address = "AA:BB:CC:DD:EE:FF"
     device.name = "ihoment_H6006"
     return device
+
+
+@pytest.fixture
+def h6006_protocol():
+    """Fixture providing an H6006Protocol instance for tests."""
+    from custom_components.govee_h6006.protocols import H6006Protocol
+    return H6006Protocol()

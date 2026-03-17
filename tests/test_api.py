@@ -12,8 +12,8 @@ def update_callback():
 
 
 @pytest.fixture
-def api(mock_ble_device, update_callback):
-    return GoveeAPI(mock_ble_device, update_callback)
+def api(mock_ble_device, update_callback, h6006_protocol):
+    return GoveeAPI(mock_ble_device, update_callback, h6006_protocol)
 
 
 @pytest.mark.asyncio
@@ -107,9 +107,9 @@ async def test_notification_updates_state(api, mock_bleak_client, update_callbac
 
 @pytest.mark.asyncio
 async def test_api_passes_timeout_to_establish_connection(
-    mock_ble_device, update_callback, mock_bleak_client
+    mock_ble_device, update_callback, mock_bleak_client, h6006_protocol
 ):
-    api = GoveeAPI(mock_ble_device, update_callback, timeout=20.0, max_attempts=3)
+    api = GoveeAPI(mock_ble_device, update_callback, h6006_protocol, timeout=20.0, max_attempts=3)
     with patch("custom_components.govee_h6006.api.establish_connection",
                return_value=mock_bleak_client) as mock_connect:
         await api.set_power(True)
@@ -122,9 +122,9 @@ async def test_api_passes_timeout_to_establish_connection(
 
 @pytest.mark.asyncio
 async def test_api_uses_default_timeout_and_retries(
-    mock_ble_device, update_callback, mock_bleak_client
+    mock_ble_device, update_callback, mock_bleak_client, h6006_protocol
 ):
-    api = GoveeAPI(mock_ble_device, update_callback)
+    api = GoveeAPI(mock_ble_device, update_callback, h6006_protocol)
     with patch("custom_components.govee_h6006.api.establish_connection",
                return_value=mock_bleak_client) as mock_connect:
         await api.set_power(True)
@@ -170,7 +170,7 @@ async def test_connection_timeout_is_20_seconds(api, mock_bleak_client):
 
 
 @pytest.mark.asyncio
-async def test_api_suppresses_rapid_notifications(mock_ble_device):
+async def test_api_suppresses_rapid_notifications(mock_ble_device, h6006_protocol):
     """Test that rapid notifications are throttled based on suppression_window."""
     import time
 
@@ -181,7 +181,7 @@ async def test_api_suppresses_rapid_notifications(mock_ble_device):
         callback_count += 1
 
     # Create API with 500ms suppression window
-    api = GoveeAPI(mock_ble_device, counting_callback, suppression_window=500)
+    api = GoveeAPI(mock_ble_device, counting_callback, h6006_protocol, suppression_window=500)
 
     # Simulate 3 rapid power notifications within 100ms
     for i in range(3):

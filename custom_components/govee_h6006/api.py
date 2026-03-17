@@ -21,7 +21,6 @@ from .const import (
     RECONNECT_COOLDOWN_SECONDS,
     WRITE_CHARACTERISTIC_UUID,
 )
-from .protocols import H6006Protocol
 from .protocols.base import GoveeProtocol
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,28 +49,27 @@ class GoveeAPI:
         self,
         ble_device: BLEDevice,
         update_callback: Callable[[], Awaitable[None]],
+        protocol: GoveeProtocol,
         timeout: float = 20.0,
         max_attempts: int = 5,
         suppression_window: int = 500,
-        protocol: GoveeProtocol | None = None,
     ) -> None:
         """Initialize the Govee API client.
 
         Args:
             ble_device: The Bluetooth device to connect to.
             update_callback: Async callback executed when device state changes.
+            protocol: Protocol implementation for packet building and parsing.
             timeout: BLE operation timeout in seconds.
             max_attempts: Maximum number of connection attempts.
             suppression_window: Time in ms to suppress notifications after a command.
-            protocol: Protocol implementation for packet building and parsing.
-                     Defaults to H6006Protocol if not provided.
         """
         self._ble_device = ble_device
         self._update_callback = update_callback
         self._timeout = timeout
         self._max_attempts = max_attempts
         self._suppression_window = suppression_window
-        self._protocol = protocol if protocol is not None else H6006Protocol()
+        self._protocol = protocol
         self._last_callback_time = 0.0
         self._client: BleakClient | None = None
         self._connect_lock = asyncio.Lock()
