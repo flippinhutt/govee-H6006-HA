@@ -3,18 +3,9 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from homeassistant.core import HomeAssistant
 
 from custom_components.govee_h6006.const import DOMAIN
 from custom_components.govee_h6006.coordinator import GoveeCoordinator
-
-
-@pytest.fixture
-def mock_hass():
-    """Fixture for a mock HomeAssistant instance."""
-    hass = MagicMock(spec=HomeAssistant)
-    hass.data = {}
-    return hass
 
 
 @pytest.fixture

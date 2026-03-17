@@ -5,6 +5,7 @@ from typing import Any
 from homeassistant.components.light import ColorMode, LightEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -79,6 +80,22 @@ class GoveeH6006Light(CoordinatorEntity[GoveeCoordinator], LightEntity):  # type
     @property
     def max_color_temp_kelvin(self) -> int:
         return self._attr_max_color_temp_kelvin
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information about this Govee light.
+
+        Returns:
+            DeviceInfo dictionary with manufacturer, model, and version information.
+        """
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._attr_unique_id)},
+            name=self._attr_name,
+            manufacturer="Govee",
+            model=self.coordinator.data.model_number or "H6006",
+            sw_version=self.coordinator.data.firmware_version,
+            hw_version=self.coordinator.data.hardware_version,
+        )
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the light on.

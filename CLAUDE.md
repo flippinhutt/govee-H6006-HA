@@ -85,11 +85,11 @@ custom_components/govee_h6006/
 │   ├── base.py         # GoveeProtocol — abstract interface for all protocols
 │   ├── h6006.py        # H6006Protocol — packet building & parsing for H6006
 │   └── __init__.py     # Protocol registry & get_protocol() factory
-├── api.py              # GoveeAPI — BLE connection, writes commands via protocol
+├── api.py              # GoveeAPI — BLE connection, writes commands via protocol, device info queries
 ├── coordinator.py      # GoveeCoordinator (DataUpdateCoordinator) — polls every 30s, proxies commands
 ├── config_flow.py      # Bluetooth discovery + manual user setup flow
 ├── light.py            # GoveeLight (LightEntity) — RGB + color temp modes
-├── const.py            # UUIDs, domain, kelvin range
+├── const.py            # UUIDs (GATT + BLE DIS), domain, kelvin range
 └── translations/       # UI strings
 ```
 
@@ -98,6 +98,8 @@ custom_components/govee_h6006/
 **Data flow:** `LightEntity` -> `GoveeCoordinator` -> selects protocol via `get_protocol()` -> `GoveeAPI(protocol)` -> `protocol.build_*_packet()` -> BLE write. Notifications flow back via `_handle_notification` -> `protocol.parse_notification()` -> `coordinator.async_set_updated_data`.
 
 **Adding new models:** See `docs/adding_new_models.md` for a complete guide on creating new protocol classes for additional Govee models.
+
+**Device info:** Firmware version, hardware revision, and model number are queried from standard BLE Device Information Service (DIS) characteristics on startup. The `GoveeAPI.query_device_info()` method reads these characteristics and stores them as instance attributes. The coordinator calls this method during initialization and logs firmware version at INFO level. Device info is displayed in the Home Assistant device info panel via the `device_info` property on entity classes.
 
 **Test stubs:** `conftest.py` patches `sys.modules` to stub all external dependencies (homeassistant, bleak, voluptuous). Tests run without any of these packages installed. The `_FlowManager` in conftest directly invokes config flow steps.
 
@@ -111,6 +113,19 @@ custom_components/govee_h6006/
 | Color temp | 0x33 | 0x05 | 0x02, 0xFF, 0xFF, 0xFF, 0x01, warm, cold |
 
 Color temp range: 2700K–6500K. Warm/cold bytes are complementary (sum to 255).
+
+## Device Information
+
+Device information is queried from standard BLE Device Information Service (DIS) characteristics:
+
+| Characteristic | UUID | Description |
+|----------------|------|-------------|
+| Firmware Revision | 0x2A26 | Firmware version string |
+| Hardware Revision | 0x2A27 | Hardware revision string |
+| Model Number | 0x2A24 | Device model number |
+| Manufacturer Name | 0x2A29 | Manufacturer name string |
+
+The `query_device_info()` method in `api.py` reads these characteristics during initialization. If a characteristic is missing or unreadable, the value is set to "Unknown". Firmware version is logged at INFO level on startup to aid in debugging. All device info is exposed in the Home Assistant device info panel via the `device_info` property on entity classes (`light.py`, `sensor.py`).
 
 ## Bluetooth Resilience
 

@@ -12,7 +12,10 @@ from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak_retry_connector import establish_connection
 
 from .const import (
+    FIRMWARE_REVISION_UUID,
+    HARDWARE_REVISION_UUID,
     MAX_RECONNECT_ATTEMPTS,
+    MODEL_NUMBER_UUID,
     READ_CHARACTERISTIC_UUID,
     RECONNECT_BACKOFF_BASE,
     RECONNECT_BACKOFF_MAX,
@@ -35,6 +38,9 @@ class GoveeAPI:
         brightness: Current brightness level (0-255).
         color_rgb: Current RGB color tuple (R, G, B).
         color_temp: Current color temperature in Kelvin.
+        firmware_version: Device firmware version string.
+        hardware_version: Device hardware revision string.
+        model_number: Device model number string.
         rssi: Last reported signal strength in dBm.
         total_reconnections: Total count of successful automatic reconnections.
     """
@@ -72,6 +78,10 @@ class GoveeAPI:
         self.brightness: int | None = None
         self.color_rgb: tuple[int, int, int] | None = None
         self.color_temp: int | None = None
+        # Device information
+        self.firmware_version: str | None = None
+        self.hardware_version: str | None = None
+        self.model_number: str | None = None
         # Connection state tracking
         self._reconnect_attempts: int = 0
         self._last_disconnect_time: float | None = None
@@ -360,6 +370,44 @@ class GoveeAPI:
             )
         # Record timestamp of successful poll
         self.last_poll_time = time.time()
+
+    async def query_device_info(self) -> None:
+        """Query device information from BLE Device Information Service (DIS).
+
+        Reads firmware version, hardware revision, and model number from standard
+        BLE DIS characteristics. Sets attributes to 'Unknown' if characteristics
+        are not available or cannot be read.
+        """
+        await self._ensure_connected()
+        assert self._client is not None  # _ensure_connected raises if connection fails
+        _LOGGER.debug("Querying device information")
+
+        # Query firmware version
+        try:
+            firmware_bytes = await self._client.read_gatt_char(FIRMWARE_REVISION_UUID)
+            self.firmware_version = firmware_bytes.decode("utf-8").strip()
+            _LOGGER.debug(f"Firmware version: {self.firmware_version}")
+        except Exception as err:
+            _LOGGER.debug(f"Failed to read firmware version: {err}")
+            self.firmware_version = "Unknown"
+
+        # Query hardware revision
+        try:
+            hardware_bytes = await self._client.read_gatt_char(HARDWARE_REVISION_UUID)
+            self.hardware_version = hardware_bytes.decode("utf-8").strip()
+            _LOGGER.debug(f"Hardware version: {self.hardware_version}")
+        except Exception as err:
+            _LOGGER.debug(f"Failed to read hardware version: {err}")
+            self.hardware_version = "Unknown"
+
+        # Query model number
+        try:
+            model_bytes = await self._client.read_gatt_char(MODEL_NUMBER_UUID)
+            self.model_number = model_bytes.decode("utf-8").strip()
+            _LOGGER.debug(f"Model number: {self.model_number}")
+        except Exception as err:
+            _LOGGER.debug(f"Failed to read model number: {err}")
+            self.model_number = "Unknown"
 
     async def set_power(self, on: bool) -> None:
         """Set the power state of the device.

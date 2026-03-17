@@ -10,6 +10,7 @@ All notable changes to the Govee H6006 Home Assistant integration are documented
 - **pyproject.toml** — Centralized configuration for ruff and mypy with project-specific rules
 - **Pre-commit hook support** — Optional local setup documented in CLAUDE.md for automatic linting and type checking before commits
 - **Developer guide for adding new models** — Comprehensive documentation (docs/adding_new_models.md) with step-by-step instructions for implementing support for additional Govee models
+- **Firmware version detection** — Query and display device firmware version, hardware revision, and model number via standard BLE Device Information Service (DIS) characteristics. Displayed in Home Assistant device info panel and logged at INFO level on startup for troubleshooting. Gracefully handles missing characteristics by showing 'Unknown'
 
 ### Changed
 - **Pluggable protocol architecture for multi-model support** — Refactored the BLE protocol layer from hardcoded H6006-specific logic into a clean, extensible abstraction. The new architecture introduces:

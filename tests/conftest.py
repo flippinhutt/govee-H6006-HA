@@ -279,6 +279,20 @@ class _HassStub:
     def __init__(self):
         self.config_entries = _ConfigEntriesProxy()
         self.data = {}
+        # Track tasks created by async_create_task
+        self._tasks = []
+
+    def async_create_task(self, coro):
+        """Mock async_create_task that tracks coroutines."""
+        self._tasks.append(coro)
+        return MagicMock()
+
+    async def async_block_till_done(self):
+        """Execute all pending tasks."""
+        tasks = self._tasks[:]
+        self._tasks.clear()
+        for task in tasks:
+            await task
 
 
 @pytest.fixture
@@ -308,3 +322,31 @@ def h6006_protocol():
     """Fixture providing an H6006Protocol instance for tests."""
     from custom_components.govee_h6006.protocols import H6006Protocol
     return H6006Protocol()
+
+
+@pytest.fixture
+def mock_hass():
+    """Mock HomeAssistant instance with async task support."""
+    from homeassistant.core import HomeAssistant
+
+    hass = MagicMock(spec=HomeAssistant)
+    hass.data = {}
+
+    # Track tasks created by async_create_task
+    hass._tasks = []
+
+    def create_task(coro):
+        """Mock async_create_task that tracks coroutines."""
+        hass._tasks.append(coro)
+        return MagicMock()
+
+    async def block_till_done():
+        """Execute all pending tasks."""
+        tasks = hass._tasks[:]
+        hass._tasks.clear()
+        for task in tasks:
+            await task
+
+    hass.async_create_task = create_task
+    hass.async_block_till_done = block_till_done
+    return hass
