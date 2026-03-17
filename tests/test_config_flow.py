@@ -56,6 +56,23 @@ async def test_bluetooth_confirm_creates_entry(hass):
     assert result2["type"] == FlowResultType.CREATE_ENTRY
     assert result2["data"]["address"] == "AA:BB:CC:DD:EE:FF"
     assert result2["data"]["name"] == "ihoment_H6006"
+    assert result2["data"]["model"] == "H6006"
+
+
+@pytest.mark.asyncio
+async def test_bluetooth_confirm_detects_h6008_model(hass):
+    """Test that H6008 model is correctly detected and stored."""
+    service_info = make_service_info(name="ihoment_H6008_5678", address="AA:BB:CC:DD:EE:FF")
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_BLUETOOTH},
+        data=service_info,
+    )
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"], user_input={}
+    )
+    assert result2["type"] == FlowResultType.CREATE_ENTRY
+    assert result2["data"]["model"] == "H6008"
 
 
 @pytest.mark.asyncio
