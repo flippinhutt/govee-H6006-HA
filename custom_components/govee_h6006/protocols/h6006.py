@@ -164,3 +164,11 @@ class H6006Protocol(GoveeProtocol):
         except Exception as err:
             _LOGGER.error(f"Error parsing notification: {err}")
             return None
+
+    def get_poll_commands(self) -> list[int]:
+        """Return command IDs to query during polling.
+
+        Returns:
+            Command IDs for power, brightness, and color state queries.
+        """
+        return [_POWER_CMD, _BRIGHTNESS_CMD, _COLOR_CMD]

@@ -89,3 +89,13 @@ class GoveeProtocol(ABC):
             - "color_temp": int (Kelvin)
         """
         pass
+
+    @abstractmethod
+    def get_poll_commands(self) -> list[int]:
+        """Return command IDs to query during polling.
+
+        Returns:
+            A list of command byte values to query for device state.
+            For example, [0x01, 0x04, 0x05] to query power, brightness, and color.
+        """
+        pass

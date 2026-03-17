@@ -12,9 +12,7 @@ from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak_retry_connector import establish_connection
 
 from .const import (
-    MAX_KELVIN,
     MAX_RECONNECT_ATTEMPTS,
-    MIN_KELVIN,
     READ_CHARACTERISTIC_UUID,
     RECONNECT_BACKOFF_BASE,
     RECONNECT_BACKOFF_MAX,
@@ -24,10 +22,6 @@ from .const import (
 from .protocols.base import GoveeProtocol
 
 _LOGGER = logging.getLogger(__name__)
-
-_POWER_CMD = 0x01
-_BRIGHTNESS_CMD = 0x04
-_COLOR_CMD = 0x05
 
 
 class GoveeAPI:
@@ -352,15 +346,15 @@ class GoveeAPI:
         # else: notification suppressed (too soon after last callback)
 
     async def poll_state(self) -> None:
-        """Request current power, brightness, and color state from the device.
+        """Request current device state from the device.
 
-        Sends state-query commands for power, brightness, and color. Responses
+        Sends state-query commands as defined by the protocol. Responses
         will flow back via the notification handler.
         """
         await self._ensure_connected()
         assert self._client is not None  # _ensure_connected raises if connection fails
         _LOGGER.debug("Polling device state")
-        for cmd in (_POWER_CMD, _BRIGHTNESS_CMD, _COLOR_CMD):
+        for cmd in self._protocol.get_poll_commands():
             await self._client.write_gatt_char(
                 WRITE_CHARACTERISTIC_UUID, self._build_query(cmd), False
             )
