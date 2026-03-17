@@ -301,3 +301,388 @@ async def test_coordinator_set_color_temp_optimistic_update(
         assert api_instance.color_rgb is None
         # Verify API method was called
         api_instance.set_color_temp.assert_called_once_with(5000)
+
+
+@pytest.mark.asyncio
+async def test_coordinator_set_brightness_with_transition_interpolates_values(
+    mock_hass, config_entry, mock_ble_device
+):
+    """Test that set_brightness_with_transition sends interpolated brightness values."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI, patch(
+        "custom_components.govee_h6006.coordinator.asyncio.sleep"
+    ) as mock_sleep:
+        api_instance = AsyncMock()
+        api_instance.state = True
+        api_instance.brightness = 100
+        api_instance.color_rgb = None
+        api_instance.color_temp = None
+        MockAPI.return_value = api_instance
+
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+
+        # Perform transition (0.2s = 2 steps at 0.1s interval)
+        await coordinator.set_brightness_with_transition(200, 0.2)
+
+        # Verify API was called multiple times with interpolated values
+        assert api_instance.set_brightness.call_count == 2
+        # First call should be halfway (150)
+        api_instance.set_brightness.assert_any_call(150)
+        # Last call should be target (200)
+        api_instance.set_brightness.assert_any_call(200)
+
+
+@pytest.mark.asyncio
+async def test_coordinator_set_brightness_with_transition_falls_back_to_instant_when_too_short(
+    mock_hass, config_entry, mock_ble_device
+):
+    """Test that set_brightness_with_transition falls back to instant change for very short transitions."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI:
+        api_instance = AsyncMock()
+        api_instance.state = True
+        api_instance.brightness = 100
+        api_instance.color_rgb = None
+        api_instance.color_temp = None
+        MockAPI.return_value = api_instance
+
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+
+        # Transition shorter than MIN_TRANSITION_DURATION (0.1s)
+        await coordinator.set_brightness_with_transition(200, 0.05)
+
+        # Should call set_brightness exactly once (instant change, no transition)
+        api_instance.set_brightness.assert_called_once_with(200)
+
+
+@pytest.mark.asyncio
+async def test_coordinator_set_brightness_with_transition_falls_back_when_brightness_none(
+    mock_hass, config_entry, mock_ble_device
+):
+    """Test that set_brightness_with_transition falls back to instant change when brightness is None."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI:
+        api_instance = AsyncMock()
+        api_instance.state = False
+        api_instance.brightness = None  # Device is off
+        api_instance.color_rgb = None
+        api_instance.color_temp = None
+        MockAPI.return_value = api_instance
+
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+
+        # Transition with None brightness
+        await coordinator.set_brightness_with_transition(200, 1.0)
+
+        # Should call set_brightness exactly once (instant change, no transition)
+        api_instance.set_brightness.assert_called_once_with(200)
+
+
+@pytest.mark.asyncio
+async def test_coordinator_set_brightness_with_transition_clamps_duration(
+    mock_hass, config_entry, mock_ble_device
+):
+    """Test that set_brightness_with_transition clamps transition duration to allowed range."""
+    from custom_components.govee_h6006.const import MAX_TRANSITION_DURATION
+
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI, patch(
+        "custom_components.govee_h6006.coordinator.asyncio.sleep"
+    ) as mock_sleep:
+        api_instance = AsyncMock()
+        api_instance.state = True
+        api_instance.brightness = 100
+        api_instance.color_rgb = None
+        api_instance.color_temp = None
+        MockAPI.return_value = api_instance
+
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+
+        # Request transition longer than MAX_TRANSITION_DURATION (300s)
+        await coordinator.set_brightness_with_transition(200, 500)
+
+        # Should have clamped to MAX_TRANSITION_DURATION (300s = 3000 steps)
+        assert api_instance.set_brightness.call_count == 3000
+
+
+@pytest.mark.asyncio
+async def test_coordinator_set_brightness_with_transition_cancels_previous_transition(
+    mock_hass, config_entry, mock_ble_device
+):
+    """Test that set_brightness_with_transition cancels previous transition."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI:
+        api_instance = AsyncMock()
+        api_instance.state = True
+        api_instance.brightness = 100
+        api_instance.color_rgb = None
+        api_instance.color_temp = None
+        MockAPI.return_value = api_instance
+
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+
+        # Start first transition but don't await it
+        import asyncio
+
+        task1 = asyncio.create_task(coordinator.set_brightness_with_transition(150, 0.3))
+
+        # Give it time to start and create the internal task
+        await asyncio.sleep(0.01)
+
+        # Verify the internal transition task exists
+        first_transition_task = coordinator._transition_task
+        assert first_transition_task is not None
+
+        # Start second transition (should cancel first)
+        await coordinator.set_brightness_with_transition(200, 0.1)
+
+        # First internal transition task should be cancelled
+        assert first_transition_task.cancelled()
+
+        # Clean up the first outer task
+        try:
+            await task1
+        except asyncio.CancelledError:
+            pass
+
+
+@pytest.mark.asyncio
+async def test_coordinator_set_color_rgb_with_transition_interpolates_values(
+    mock_hass, config_entry, mock_ble_device
+):
+    """Test that set_color_rgb_with_transition sends interpolated RGB values."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI, patch(
+        "custom_components.govee_h6006.coordinator.asyncio.sleep"
+    ) as mock_sleep:
+        api_instance = AsyncMock()
+        api_instance.state = True
+        api_instance.brightness = 255
+        api_instance.color_rgb = (0, 0, 0)
+        api_instance.color_temp = None
+        MockAPI.return_value = api_instance
+
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+
+        # Perform transition (0.2s = 2 steps at 0.1s interval)
+        await coordinator.set_color_rgb_with_transition(100, 200, 50, 0.2)
+
+        # Verify API was called multiple times with interpolated values
+        assert api_instance.set_color_rgb.call_count == 2
+        # First call should be halfway (50, 100, 25)
+        api_instance.set_color_rgb.assert_any_call(50, 100, 25)
+        # Last call should be target (100, 200, 50)
+        api_instance.set_color_rgb.assert_any_call(100, 200, 50)
+
+
+@pytest.mark.asyncio
+async def test_coordinator_set_color_rgb_with_transition_falls_back_when_color_rgb_none(
+    mock_hass, config_entry, mock_ble_device
+):
+    """Test that set_color_rgb_with_transition falls back to instant change when color_rgb is None."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI:
+        api_instance = AsyncMock()
+        api_instance.state = True
+        api_instance.brightness = 255
+        api_instance.color_rgb = None  # No current color
+        api_instance.color_temp = 4000
+        MockAPI.return_value = api_instance
+
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+
+        # Transition with None color_rgb
+        await coordinator.set_color_rgb_with_transition(100, 200, 50, 1.0)
+
+        # Should call set_color_rgb exactly once (instant change, no transition)
+        api_instance.set_color_rgb.assert_called_once_with(100, 200, 50)
+
+
+@pytest.mark.asyncio
+async def test_coordinator_set_color_rgb_with_transition_clears_color_temp(
+    mock_hass, config_entry, mock_ble_device
+):
+    """Test that set_color_rgb_with_transition clears color_temp during transition."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI, patch(
+        "custom_components.govee_h6006.coordinator.asyncio.sleep"
+    ) as mock_sleep:
+        api_instance = AsyncMock()
+        api_instance.state = True
+        api_instance.brightness = 255
+        api_instance.color_rgb = (0, 0, 0)
+        api_instance.color_temp = 4000  # Has color temp set
+        MockAPI.return_value = api_instance
+
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+
+        # Perform transition
+        await coordinator.set_color_rgb_with_transition(100, 200, 50, 0.2)
+
+        # Verify color_temp was cleared
+        assert api_instance.color_temp is None
+
+
+@pytest.mark.asyncio
+async def test_coordinator_set_color_temp_with_transition_interpolates_values(
+    mock_hass, config_entry, mock_ble_device
+):
+    """Test that set_color_temp_with_transition sends interpolated color temp values."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI, patch(
+        "custom_components.govee_h6006.coordinator.asyncio.sleep"
+    ) as mock_sleep:
+        api_instance = AsyncMock()
+        api_instance.state = True
+        api_instance.brightness = 255
+        api_instance.color_rgb = None
+        api_instance.color_temp = 3000
+        MockAPI.return_value = api_instance
+
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+
+        # Perform transition (0.2s = 2 steps at 0.1s interval)
+        await coordinator.set_color_temp_with_transition(5000, 0.2)
+
+        # Verify API was called multiple times with interpolated values
+        assert api_instance.set_color_temp.call_count == 2
+        # First call should be halfway (4000)
+        api_instance.set_color_temp.assert_any_call(4000)
+        # Last call should be target (5000)
+        api_instance.set_color_temp.assert_any_call(5000)
+
+
+@pytest.mark.asyncio
+async def test_coordinator_set_color_temp_with_transition_falls_back_when_color_temp_none(
+    mock_hass, config_entry, mock_ble_device
+):
+    """Test that set_color_temp_with_transition falls back to instant change when color_temp is None."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI:
+        api_instance = AsyncMock()
+        api_instance.state = True
+        api_instance.brightness = 255
+        api_instance.color_rgb = (255, 0, 0)
+        api_instance.color_temp = None  # No current color temp
+        MockAPI.return_value = api_instance
+
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+
+        # Transition with None color_temp
+        await coordinator.set_color_temp_with_transition(5000, 1.0)
+
+        # Should call set_color_temp exactly once (instant change, no transition)
+        api_instance.set_color_temp.assert_called_once_with(5000)
+
+
+@pytest.mark.asyncio
+async def test_coordinator_set_color_temp_with_transition_clears_color_rgb(
+    mock_hass, config_entry, mock_ble_device
+):
+    """Test that set_color_temp_with_transition clears color_rgb during transition."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI, patch(
+        "custom_components.govee_h6006.coordinator.asyncio.sleep"
+    ) as mock_sleep:
+        api_instance = AsyncMock()
+        api_instance.state = True
+        api_instance.brightness = 255
+        api_instance.color_rgb = (255, 0, 0)  # Has RGB set
+        api_instance.color_temp = 3000
+        MockAPI.return_value = api_instance
+
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+
+        # Perform transition
+        await coordinator.set_color_temp_with_transition(5000, 0.2)
+
+        # Verify color_rgb was cleared
+        assert api_instance.color_rgb is None
+
+
+@pytest.mark.asyncio
+async def test_coordinator_cancel_transition_cancels_active_task(
+    mock_hass, config_entry, mock_ble_device
+):
+    """Test that _cancel_transition cancels active transition task."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI:
+        api_instance = AsyncMock()
+        api_instance.state = True
+        api_instance.brightness = 100
+        api_instance.color_rgb = None
+        api_instance.color_temp = None
+        MockAPI.return_value = api_instance
+
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+
+        # Start transition but don't await it
+        import asyncio
+
+        task = asyncio.create_task(coordinator.set_brightness_with_transition(200, 1.0))
+
+        # Give it time to start and create the internal task
+        await asyncio.sleep(0.01)
+
+        # Verify the internal transition task exists
+        assert coordinator._transition_task is not None
+        transition_task = coordinator._transition_task
+
+        # Cancel the transition
+        coordinator._cancel_transition()
+
+        # Give the event loop time to process the cancellation
+        await asyncio.sleep(0.01)
+
+        # Internal transition task should be cancelled or done
+        assert transition_task.cancelled() or transition_task.done()
+
+        # Clean up the outer task
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+
+@pytest.mark.asyncio
+async def test_coordinator_cancel_transition_does_nothing_when_no_active_task(
+    mock_hass, config_entry, mock_ble_device
+):
+    """Test that _cancel_transition does nothing when there's no active transition."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI:
+        api_instance = AsyncMock()
+        MockAPI.return_value = api_instance
+
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+
+        # Cancel when there's no active transition - should not raise
+        coordinator._cancel_transition()
+
+        # No exception should be raised
