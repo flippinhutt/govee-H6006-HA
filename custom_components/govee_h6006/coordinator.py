@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Optional
 
 from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
@@ -17,6 +19,9 @@ from .const import (
     DEFAULT_POLLING_INTERVAL,
     DEFAULT_SUPPRESSION_WINDOW,
     DOMAIN,
+    MAX_TRANSITION_DURATION,
+    MIN_TRANSITION_DURATION,
+    TRANSITION_UPDATE_INTERVAL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -91,6 +96,9 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
         # Initialize data with current API state
         self.data = self._snapshot()
 
+        # Track active transition task for cancellation
+        self._transition_task: Optional[asyncio.Task] = None
+
     @property
     def available(self) -> bool:
         """Return True if the device is available (connected or can reconnect)."""
@@ -116,6 +124,12 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
     async def _async_push_data(self) -> None:
         """Update coordinator data from push notification."""
         self.async_set_updated_data(self._snapshot())
+
+    def _cancel_transition(self) -> None:
+        """Cancel any active transition task."""
+        if self._transition_task and not self._transition_task.done():
+            self._transition_task.cancel()
+            _LOGGER.debug("Cancelled active transition task")
 
     async def _async_update_data(self) -> GoveeData:
         """Fetch latest state from device via polling.
@@ -252,3 +266,28 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
             self._api.color_temp = prev_color_temp
             self.async_set_updated_data(self._snapshot())
             raise HomeAssistantError(f"Failed to set color temperature: {err}") from err
+
+    async def set_brightness_with_transition(self, value: int, transition: float) -> None:
+        """Set brightness with smooth transition.
+
+        Args:
+            value: Target brightness level (0-255).
+            transition: Transition duration in seconds.
+
+        Raises:
+            HomeAssistantError: If command execution fails.
+        """
+        # Cancel any active transition
+        self._cancel_transition()
+
+        # Clamp transition duration to allowed range
+        transition = max(MIN_TRANSITION_DURATION, min(MAX_TRANSITION_DURATION, transition))
+
+        # If transition is very short or device is off, fall back to instant change
+        if transition < MIN_TRANSITION_DURATION or self._api.brightness is None:
+            await self.set_brightness(value)
+            return
+
+        # TODO: Implement interpolation logic in subtask-2-2
+        # For now, just do an instant change
+        await self.set_brightness(value)
