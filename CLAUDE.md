@@ -4,9 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-HACS custom integration for the Govee H6006 light bulb. This integration uses **Bluetooth Low Energy (BLE) only** — not WiFi — for local-only control with zero cloud dependency. The H6006 device supports both BLE and WiFi, but we deliberately use BLE to avoid cloud connectivity requirements. Targets Home Assistant with `bleak` + `bleak-retry-connector` for BLE communication.
+HACS custom integration for Govee H60xx series light bulbs (H6006, H6008, H6009, H6003). This integration uses **Bluetooth Low Energy (BLE) only** — not WiFi — for local-only control with zero cloud dependency. These devices support both BLE and WiFi, but we deliberately use BLE to avoid cloud connectivity requirements. Targets Home Assistant with `bleak` + `bleak-retry-connector` for BLE communication.
 
-Domain: `govee_h6006`. Discovery prefix: `ihoment_*`.
+**Supported Models:**
+- **H6006** (RGBWW, 800 lm, 9W) — Hardware-verified baseline
+- **H6008** (RGBWW, 800 lm, 9W) — Protocol research verified
+- **H6009** (RGBWW, 1200 lm, 12W) — Protocol research verified, music sync + scenes
+- **H6003** (RGB, 800 lm, 9W) — Protocol research verified, RGB-only (no color temp)
+
+Domain: `govee_h6006`. Discovery prefixes: `ihoment_H6006`, `ihoment_H6008`, `ihoment_H6009`, `ihoment_H6003`.
 
 ## Commands
 
@@ -90,9 +96,9 @@ custom_components/govee_h6006/
 └── translations/     # UI strings
 ```
 
-**Two packet heads:** Command frames use `0x33` (built by `GoveePacket` in `api_utils.py`). Query/response frames use `0xAA` (built/parsed in `api.py`). Both are 20 bytes with XOR checksum in the last byte.
+**Two packet heads:** Command frames use `0x33` (built by protocol classes in `protocols.py`). Query/response frames use `0xAA` (built/parsed in `api.py`). Both are 20 bytes with XOR checksum in the last byte.
 
-**Data flow:** `LightEntity` -> `GoveeCoordinator` -> `GoveeAPI` -> BLE write. Notifications flow back via `_handle_notification` callback -> `coordinator.async_set_updated_data`.
+**Data flow:** `LightEntity` -> `GoveeCoordinator` -> `GoveeAPI` -> Protocol class -> BLE write. Notifications flow back via `_handle_notification` callback -> `coordinator.async_set_updated_data`.
 
 **Device info:** Firmware version, hardware revision, and model number are queried from standard BLE Device Information Service (DIS) characteristics on startup. The `GoveeAPI.query_device_info()` method reads these characteristics and stores them as instance attributes. The coordinator calls this method during initialization and logs firmware version at INFO level. Device info is displayed in the Home Assistant device info panel via the `device_info` property on entity classes.
 

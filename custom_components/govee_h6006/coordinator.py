@@ -59,6 +59,7 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
         """
         self.device_address = config_entry.data["address"]
         self.device_name = config_entry.data["name"]
+        model_type = config_entry.data.get("model", "H6006")
 
         ble_device = bluetooth.async_ble_device_from_address(
             hass, self.device_address, connectable=True
@@ -80,6 +81,7 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
             timeout=connection_timeout,
             max_attempts=max_retries,
             suppression_window=suppression_window,
+            model_type=model_type,
         )
 
         # Query device info on initialization
