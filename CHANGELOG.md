@@ -14,6 +14,7 @@ All notable changes to the Govee H6006 Home Assistant integration are documented
 - **Type checking with mypy** — Strict type checking configured for core modules (api.py, api_utils.py, coordinator.py) to catch bugs at development time
 - **pyproject.toml** — Centralized configuration for ruff and mypy with project-specific rules
 - **Pre-commit hook support** — Optional local setup documented in CLAUDE.md for automatic linting and type checking before commits
+- **Firmware version detection** — Query and display device firmware version, hardware revision, and model number via standard BLE Device Information Service (DIS) characteristics. Displayed in Home Assistant device info panel and logged at INFO level on startup for troubleshooting. Gracefully handles missing characteristics by showing 'Unknown'
 
 ### Changed
 - **Config entry structure** — Config entries now include a `model` field to store detected model type (defaults to "H6006" for backward compatibility with existing installations)

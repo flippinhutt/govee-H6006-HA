@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "💬 GitHub Discussions - Ask a Question"
+    url: https://github.com/flippinhutt/govee/discussions
+    about: For general questions, help, and community discussion (not bug reports or feature requests)
+  - name: "📖 Developer Guide - Add New Govee Model Support"
+    url: https://github.com/flippinhutt/govee/blob/main/docs/CONTRIBUTING_DEVELOPER_GUIDE.md
+    about: Step-by-step guide for adding support for new Govee device models
+  - name: "🔍 BLE Protocol Sniffing Tutorial"
+    url: https://github.com/flippinhutt/govee/blob/main/docs/BLE_PROTOCOL_SNIFFING.md
+    about: Learn how to reverse engineer BLE protocols using nRF Connect or Wireshark
