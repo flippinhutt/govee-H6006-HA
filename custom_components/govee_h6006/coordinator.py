@@ -18,6 +18,7 @@ from .const import (
     DEFAULT_SUPPRESSION_WINDOW,
     DOMAIN,
 )
+from .protocols import get_protocol
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,12 +72,16 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
             "suppression_window", DEFAULT_SUPPRESSION_WINDOW
         )
 
+        # Select the appropriate protocol based on device name
+        protocol = get_protocol(self.device_name)
+
         self._api = GoveeAPI(
             ble_device,
             self._async_push_data,
             timeout=connection_timeout,
             max_attempts=max_retries,
             suppression_window=suppression_window,
+            protocol=protocol,
         )
 
         polling_interval = config_entry.options.get("polling_interval", DEFAULT_POLLING_INTERVAL)
