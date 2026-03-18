@@ -24,6 +24,9 @@ _bleak_stub.BLEDevice = MagicMock
 sys.modules.setdefault("bleak", _bleak_stub)
 sys.modules.setdefault("bleak.backends", MagicMock())
 sys.modules.setdefault("bleak.backends.characteristic", MagicMock())
+_bleak_device_stub = MagicMock()
+_bleak_device_stub.BLEDevice = MagicMock
+sys.modules.setdefault("bleak.backends.device", _bleak_device_stub)
 _bleak_retry_stub = MagicMock()
 _bleak_retry_stub.establish_connection = AsyncMock()
 sys.modules.setdefault("bleak_retry_connector", _bleak_retry_stub)

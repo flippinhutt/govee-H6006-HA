@@ -5,10 +5,10 @@ import logging
 import time
 from collections import deque
 from collections.abc import Awaitable, Callable
-from typing import cast
 
-from bleak import BleakClient, BLEDevice
+from bleak import BleakClient
 from bleak.backends.characteristic import BleakGATTCharacteristic
+from bleak.backends.device import BLEDevice
 from bleak_retry_connector import establish_connection
 
 from .const import (
@@ -128,7 +128,7 @@ class GoveeAPI:
     @property
     def address(self) -> str:
         """Return the Bluetooth MAC address of the device."""
-        return cast(str, self._ble_device.address)
+        return self._ble_device.address
 
     @property
     def is_available(self) -> bool:

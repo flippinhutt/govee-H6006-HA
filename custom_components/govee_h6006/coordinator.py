@@ -5,7 +5,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from bleak import BLEDevice
+from bleak.backends.device import BLEDevice
 from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -77,7 +77,7 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
             )
             # Create a placeholder BLEDevice if not found in cache.
             # GoveeAPI will refresh this in _async_update_data.
-            ble_device = BLEDevice(self.device_address, self.device_name, {}, 0)
+            ble_device = BLEDevice(self.device_address, self.device_name, {})
 
         connection_timeout = config_entry.options.get(
             "connection_timeout", DEFAULT_CONNECTION_TIMEOUT
