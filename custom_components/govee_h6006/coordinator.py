@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Optional
 
 from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
@@ -17,6 +19,9 @@ from .const import (
     DEFAULT_POLLING_INTERVAL,
     DEFAULT_SUPPRESSION_WINDOW,
     DOMAIN,
+    MAX_TRANSITION_DURATION,
+    MIN_TRANSITION_DURATION,
+    TRANSITION_UPDATE_INTERVAL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -117,6 +122,9 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
         # Initialize data with current API state
         self.data = self._snapshot()
 
+        # Track active transition task for cancellation
+        self._transition_task: Optional[asyncio.Task] = None
+
     @property
     def available(self) -> bool:
         """Return True if the device is available (connected or can reconnect)."""
@@ -145,6 +153,12 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
     async def _async_push_data(self) -> None:
         """Update coordinator data from push notification."""
         self.async_set_updated_data(self._snapshot())
+
+    def _cancel_transition(self) -> None:
+        """Cancel any active transition task."""
+        if self._transition_task and not self._transition_task.done():
+            self._transition_task.cancel()
+            _LOGGER.debug("Cancelled active transition task")
 
     async def _async_update_data(self) -> GoveeData:
         """Fetch latest state from device via polling.
@@ -281,3 +295,233 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
             self._api.color_temp = prev_color_temp
             self.async_set_updated_data(self._snapshot())
             raise HomeAssistantError(f"Failed to set color temperature: {err}") from err
+
+    async def set_brightness_with_transition(self, value: int, transition: float) -> None:
+        """Set brightness with smooth transition.
+
+        Args:
+            value: Target brightness level (0-255).
+            transition: Transition duration in seconds.
+
+        Raises:
+            HomeAssistantError: If command execution fails.
+        """
+        # Cancel any active transition
+        self._cancel_transition()
+
+        # Clamp transition duration to allowed range
+        transition = max(MIN_TRANSITION_DURATION, min(MAX_TRANSITION_DURATION, transition))
+
+        # If transition is very short or device is off, fall back to instant change
+        if transition < MIN_TRANSITION_DURATION or self._api.brightness is None:
+            await self.set_brightness(value)
+            return
+
+        # Create and track transition task
+        self._transition_task = asyncio.create_task(
+            self._run_brightness_transition(value, transition)
+        )
+
+        try:
+            await self._transition_task
+        except asyncio.CancelledError:
+            _LOGGER.debug("Brightness transition cancelled")
+            # Don't raise - cancellation is expected when a new command arrives
+
+    async def _run_brightness_transition(self, target: int, duration: float) -> None:
+        """Run brightness transition interpolation.
+
+        Args:
+            target: Target brightness level (0-255).
+            duration: Transition duration in seconds.
+        """
+        start = self._api.brightness
+        if start is None:
+            return
+
+        # Calculate number of steps
+        steps = int(duration / TRANSITION_UPDATE_INTERVAL)
+        if steps < 1:
+            steps = 1
+
+        # Interpolate and send intermediate values
+        for step in range(1, steps + 1):
+            # Linear interpolation
+            progress = step / steps
+            interpolated = int(start + (target - start) * progress)
+
+            # Send brightness command (without optimistic update to avoid flicker)
+            prev_brightness = self._api.brightness
+            try:
+                await self._api.set_brightness(interpolated)
+                # Update internal state
+                self._api.brightness = interpolated
+                self.async_set_updated_data(self._snapshot())
+            except Exception as err:
+                _LOGGER.warning(f"Failed to send transition step: {err}")
+                # Rollback and abort transition
+                self._api.brightness = prev_brightness
+                self.async_set_updated_data(self._snapshot())
+                return
+
+            # Wait before next update (unless this is the last step)
+            if step < steps:
+                await asyncio.sleep(TRANSITION_UPDATE_INTERVAL)
+
+    async def set_color_rgb_with_transition(
+        self, r: int, g: int, b: int, transition: float
+    ) -> None:
+        """Set RGB color with smooth transition.
+
+        Args:
+            r: Target red intensity (0-255).
+            g: Target green intensity (0-255).
+            b: Target blue intensity (0-255).
+            transition: Transition duration in seconds.
+
+        Raises:
+            HomeAssistantError: If command execution fails.
+        """
+        # Cancel any active transition
+        self._cancel_transition()
+
+        # Clamp transition duration to allowed range
+        transition = max(MIN_TRANSITION_DURATION, min(MAX_TRANSITION_DURATION, transition))
+
+        # If transition is very short or no current color, fall back to instant change
+        if transition < MIN_TRANSITION_DURATION or self._api.color_rgb is None:
+            await self.set_color_rgb(r, g, b)
+            return
+
+        # Create and track transition task
+        self._transition_task = asyncio.create_task(
+            self._run_color_rgb_transition((r, g, b), transition)
+        )
+
+        try:
+            await self._transition_task
+        except asyncio.CancelledError:
+            _LOGGER.debug("RGB color transition cancelled")
+            # Don't raise - cancellation is expected when a new command arrives
+
+    async def _run_color_rgb_transition(
+        self, target: tuple[int, int, int], duration: float
+    ) -> None:
+        """Run RGB color transition interpolation.
+
+        Args:
+            target: Target RGB color (r, g, b).
+            duration: Transition duration in seconds.
+        """
+        start = self._api.color_rgb
+        if start is None:
+            return
+
+        # Calculate number of steps
+        steps = int(duration / TRANSITION_UPDATE_INTERVAL)
+        if steps < 1:
+            steps = 1
+
+        # Interpolate and send intermediate values
+        for step in range(1, steps + 1):
+            # Linear interpolation per color channel
+            progress = step / steps
+            interpolated_r = int(start[0] + (target[0] - start[0]) * progress)
+            interpolated_g = int(start[1] + (target[1] - start[1]) * progress)
+            interpolated_b = int(start[2] + (target[2] - start[2]) * progress)
+
+            # Send color command (without optimistic update to avoid flicker)
+            prev_color_rgb = self._api.color_rgb
+            prev_color_temp = self._api.color_temp
+            try:
+                await self._api.set_color_rgb(interpolated_r, interpolated_g, interpolated_b)
+                # Update internal state
+                self._api.color_rgb = (interpolated_r, interpolated_g, interpolated_b)
+                self._api.color_temp = None  # clear color temp when RGB is set
+                self.async_set_updated_data(self._snapshot())
+            except Exception as err:
+                _LOGGER.warning(f"Failed to send transition step: {err}")
+                # Rollback and abort transition
+                self._api.color_rgb = prev_color_rgb
+                self._api.color_temp = prev_color_temp
+                self.async_set_updated_data(self._snapshot())
+                return
+
+            # Wait before next update (unless this is the last step)
+            if step < steps:
+                await asyncio.sleep(TRANSITION_UPDATE_INTERVAL)
+
+    async def set_color_temp_with_transition(self, kelvin: int, transition: float) -> None:
+        """Set color temperature with smooth transition.
+
+        Args:
+            kelvin: Target color temperature in Kelvin (2700-6500).
+            transition: Transition duration in seconds.
+
+        Raises:
+            HomeAssistantError: If command execution fails.
+        """
+        # Cancel any active transition
+        self._cancel_transition()
+
+        # Clamp transition duration to allowed range
+        transition = max(MIN_TRANSITION_DURATION, min(MAX_TRANSITION_DURATION, transition))
+
+        # If transition is very short or no current color temp, fall back to instant change
+        if transition < MIN_TRANSITION_DURATION or self._api.color_temp is None:
+            await self.set_color_temp(kelvin)
+            return
+
+        # Create and track transition task
+        self._transition_task = asyncio.create_task(
+            self._run_color_temp_transition(kelvin, transition)
+        )
+
+        try:
+            await self._transition_task
+        except asyncio.CancelledError:
+            _LOGGER.debug("Color temperature transition cancelled")
+            # Don't raise - cancellation is expected when a new command arrives
+
+    async def _run_color_temp_transition(self, target: int, duration: float) -> None:
+        """Run color temperature transition interpolation.
+
+        Args:
+            target: Target color temperature in Kelvin (2700-6500).
+            duration: Transition duration in seconds.
+        """
+        start = self._api.color_temp
+        if start is None:
+            return
+
+        # Calculate number of steps
+        steps = int(duration / TRANSITION_UPDATE_INTERVAL)
+        if steps < 1:
+            steps = 1
+
+        # Interpolate and send intermediate values
+        for step in range(1, steps + 1):
+            # Linear interpolation
+            progress = step / steps
+            interpolated = int(start + (target - start) * progress)
+
+            # Send color temp command (without optimistic update to avoid flicker)
+            prev_color_rgb = self._api.color_rgb
+            prev_color_temp = self._api.color_temp
+            try:
+                await self._api.set_color_temp(interpolated)
+                # Update internal state
+                self._api.color_temp = interpolated
+                self._api.color_rgb = None  # clear RGB when color temp is set
+                self.async_set_updated_data(self._snapshot())
+            except Exception as err:
+                _LOGGER.warning(f"Failed to send transition step: {err}")
+                # Rollback and abort transition
+                self._api.color_rgb = prev_color_rgb
+                self._api.color_temp = prev_color_temp
+                self.async_set_updated_data(self._snapshot())
+                return
+
+            # Wait before next update (unless this is the last step)
+            if step < steps:
+                await asyncio.sleep(TRANSITION_UPDATE_INTERVAL)

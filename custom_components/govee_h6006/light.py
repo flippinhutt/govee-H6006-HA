@@ -101,17 +101,38 @@ class GoveeH6006Light(CoordinatorEntity[GoveeCoordinator], LightEntity):  # type
         """Turn the light on.
 
         Args:
-            **kwargs: Light attributes to set (brightness, rgb_color, color_temp_kelvin).
+            **kwargs: Light attributes to set (brightness, rgb_color, color_temp_kelvin, transition).
+                transition: Duration in seconds for smooth transitions.
         """
+        # Extract transition parameter (default to 0 for instant change)
+        transition = kwargs.get("transition", 0)
+
         if not self.is_on:
             await self.coordinator.set_power(True)
+
+        # Use transition methods if transition > 0, otherwise use instant methods
         if "brightness" in kwargs:
-            await self.coordinator.set_brightness(kwargs["brightness"])
+            if transition > 0:
+                await self.coordinator.set_brightness_with_transition(
+                    kwargs["brightness"], transition
+                )
+            else:
+                await self.coordinator.set_brightness(kwargs["brightness"])
+
         if "rgb_color" in kwargs:
             r, g, b = kwargs["rgb_color"]
-            await self.coordinator.set_color_rgb(r, g, b)
+            if transition > 0:
+                await self.coordinator.set_color_rgb_with_transition(r, g, b, transition)
+            else:
+                await self.coordinator.set_color_rgb(r, g, b)
+
         if "color_temp_kelvin" in kwargs:
-            await self.coordinator.set_color_temp(kwargs["color_temp_kelvin"])
+            if transition > 0:
+                await self.coordinator.set_color_temp_with_transition(
+                    kwargs["color_temp_kelvin"], transition
+                )
+            else:
+                await self.coordinator.set_color_temp(kwargs["color_temp_kelvin"])
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the light off."""

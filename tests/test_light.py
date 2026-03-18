@@ -19,6 +19,9 @@ def make_coordinator(state=True, brightness=255, color_rgb=None, color_temp=None
     coordinator.set_brightness = AsyncMock()
     coordinator.set_color_rgb = AsyncMock()
     coordinator.set_color_temp = AsyncMock()
+    coordinator.set_brightness_with_transition = AsyncMock()
+    coordinator.set_color_rgb_with_transition = AsyncMock()
+    coordinator.set_color_temp_with_transition = AsyncMock()
     coordinator.device_name = "ihoment_H6006"
     coordinator.device_address = "AA:BB:CC:DD:EE:FF"
     return coordinator
@@ -95,3 +98,59 @@ async def test_turn_off():
     light = make_light(coordinator)
     await light.async_turn_off()
     coordinator.set_power.assert_called_once_with(False)
+
+@pytest.mark.asyncio
+async def test_turn_on_with_brightness_and_transition():
+    coordinator = make_coordinator()
+    light = make_light(coordinator)
+    await light.async_turn_on(brightness=100, transition=2.5)
+    coordinator.set_brightness_with_transition.assert_called_once_with(100, 2.5)
+    coordinator.set_brightness.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_turn_on_with_rgb_and_transition():
+    coordinator = make_coordinator()
+    light = make_light(coordinator)
+    await light.async_turn_on(rgb_color=(255, 128, 64), transition=3.0)
+    coordinator.set_color_rgb_with_transition.assert_called_once_with(255, 128, 64, 3.0)
+    coordinator.set_color_rgb.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_turn_on_with_color_temp_and_transition():
+    coordinator = make_coordinator()
+    light = make_light(coordinator)
+    await light.async_turn_on(color_temp_kelvin=4000, transition=1.5)
+    coordinator.set_color_temp_with_transition.assert_called_once_with(4000, 1.5)
+    coordinator.set_color_temp.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_turn_on_brightness_no_transition_uses_instant():
+    coordinator = make_coordinator()
+    light = make_light(coordinator)
+    await light.async_turn_on(brightness=150)
+    coordinator.set_brightness.assert_called_once_with(150)
+    coordinator.set_brightness_with_transition.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_turn_on_brightness_zero_transition_uses_instant():
+    coordinator = make_coordinator()
+    light = make_light(coordinator)
+    await light.async_turn_on(brightness=150, transition=0)
+    coordinator.set_brightness.assert_called_once_with(150)
+    coordinator.set_brightness_with_transition.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_turn_on_rgb_no_transition_uses_instant():
+    coordinator = make_coordinator()
+    light = make_light(coordinator)
+    await light.async_turn_on(rgb_color=(200, 100, 50))
+    coordinator.set_color_rgb.assert_called_once_with(200, 100, 50)
+    coordinator.set_color_rgb_with_transition.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_turn_on_color_temp_no_transition_uses_instant():
+    coordinator = make_coordinator()
+    light = make_light(coordinator)
+    await light.async_turn_on(color_temp_kelvin=5000)
+    coordinator.set_color_temp.assert_called_once_with(5000)
+    coordinator.set_color_temp_with_transition.assert_not_called()
