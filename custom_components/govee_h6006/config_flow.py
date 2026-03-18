@@ -120,7 +120,8 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
             return await self.async_step_bluetooth_confirm()
 
         current_addresses = self._async_current_ids()
-        # connectable=True — All Govee models require an active GATT connection, not passive advertising
+        # connectable=True — All Govee models require an active GATT connection,
+        # not passive advertising
         for info in async_discovered_service_info(self.hass, connectable=True):
             if info.address in current_addresses or info.address in self._discovered_devices:
                 continue

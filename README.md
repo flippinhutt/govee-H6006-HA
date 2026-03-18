@@ -17,6 +17,7 @@ This Home Assistant custom integration discovers and controls Govee H6006 Blueto
 - **🔒 100% Local**: All communication stays on your local network via Bluetooth Low Energy (BLE)
 - **⚡ Auto-Discovery**: Devices appear automatically — no manual configuration needed
 - **🎨 Full Control**: Brightness, color (RGB), and on/off state
+- **🛡️ Robust Connection**: Unified locking and exponential backoff for high reliability
 - **🚫 No Cloud**: Never talks to Govee's servers or requires API keys
 - **🔌 Simple Setup**: If you have a Bluetooth adapter, you're ready to go
 

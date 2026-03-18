@@ -18,7 +18,13 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Govee H6006 light platform."""
+    """Set up Govee H6006 light platform.
+
+    Args:
+        hass: Home Assistant instance.
+        config_entry: Config entry for this integration.
+        async_add_entities: Callback to add entities to Home Assistant.
+    """
     coordinator: GoveeCoordinator = hass.data[DOMAIN][config_entry.entry_id]
     async_add_entities([GoveeH6006Light(coordinator, config_entry)])
 
@@ -101,7 +107,8 @@ class GoveeH6006Light(CoordinatorEntity[GoveeCoordinator], LightEntity):  # type
         """Turn the light on.
 
         Args:
-            **kwargs: Light attributes to set (brightness, rgb_color, color_temp_kelvin, transition).
+            **kwargs: Light attributes to set.
+                Supported: brightness, rgb_color, color_temp_kelvin, transition.
                 transition: Duration in seconds for smooth transitions.
         """
         # Extract transition parameter (default to 0 for instant change)

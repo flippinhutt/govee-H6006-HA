@@ -4,6 +4,19 @@ All notable changes to the Govee H6006 Home Assistant integration are documented
 
 ## [Unreleased]
 
+### Fixed
+- **BLE Connection Reliability** — Core connection logic refactored for high stability:
+  - **Unified Locking** — Replaced redundant locks with a single `asyncio.Lock` to prevent race conditions during concurrent commands.
+  - **Concurrency Bug** — Fixed a critical issue where concurrent calls to `_ensure_connected` would incorrectly raise a `ConnectionError` if a reconnection was already in progress.
+  - **Side-effect removal** — Cleaned up `is_available` property to ensure it doesn't modify internal state during polling.
+  - **Configurable Suppression** — Hardcoded notification suppression updated to use the configuration-defined suppression window.
+
+### Documentation
+- **Google-Format Docstrings** — Enhanced all core modules (`api.py`, `coordinator.py`, `light.py`) with comprehensive Google-style docstrings for better developer experience.
+- **Architecture Guide** — Updated `docs/ARCHITECTURE.md` to reflect unified locking and state management improvements.
+- **Internal API Reference** — Refactored `docs/API.md` to align with the new protocol-based architecture.
+- **README Enhancements** — Added reliability highlights and updated architecture diagrams.
+
 ### Added
 - **Multi-model support** — Added support for three additional Govee bulb models: H6008 (RGBWW, 800 lm, 9W), H6009 (RGBWW, 1200 lm, 12W with music sync and scene modes), and H6003 (RGB-only, 800 lm, 9W)
 - **Pluggable protocol architecture** — New `protocols.py` module with abstract `GoveeProtocol` base class and model-specific protocol implementations (H6006Protocol, H6008Protocol, H6009Protocol, H6003Protocol)

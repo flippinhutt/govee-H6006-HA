@@ -35,7 +35,14 @@ _COLOR_CMD = 0x05
 
 
 def _build_query(cmd: int) -> bytes:
-    """Build a 20-byte state-query packet (head=0xAA) for the given command."""
+    """Build a 20-byte state-query packet (head=0xAA) for the given command.
+
+    Args:
+        cmd: The command byte to query (e.g., _POWER_CMD, _BRIGHTNESS_CMD).
+
+    Returns:
+        A 20-byte packet including the command and checksum.
+    """
     frame = [_REQUEST_HEAD, cmd & 0xFF] + [0] * 17
     checksum = 0
     for b in frame:
@@ -88,8 +95,7 @@ class GoveeAPI:
         self._suppression_window = suppression_window
         self._last_callback_time = 0.0
         self._client: BleakClient | None = None
-        self._connect_lock = asyncio.Lock()
-        self._suppress_update_until = 0.0  # Suppress notifications after command for 500ms
+        self._suppress_update_until = 0.0  # Suppress notifications after command
         self.state: bool | None = None
         self.brightness: int | None = None
         self.color_rgb: tuple[int, int, int] | None = None
@@ -102,7 +108,7 @@ class GoveeAPI:
         self._reconnect_attempts: int = 0
         self._last_disconnect_time: float | None = None
         self._is_reconnecting: bool = False
-        self._connection_lock: asyncio.Lock = asyncio.Lock()
+        self._lock: asyncio.Lock = asyncio.Lock()
         # Diagnostic metrics
         self.rssi: int | None = None
         # Track last 10 attempts (True=success, False=failure)
@@ -133,17 +139,11 @@ class GoveeAPI:
 
         # If max reconnection attempts exceeded, check cooldown period
         if self._reconnect_attempts >= MAX_RECONNECT_ATTEMPTS:
-            # If cooldown period has elapsed, reset counter and allow retry
+            # If cooldown period has elapsed, allow retry
+            # (counter reset handled in _retry_connection)
             if self._last_disconnect_time is not None:
                 cooldown_elapsed = time.time() - self._last_disconnect_time
                 if cooldown_elapsed >= RECONNECT_COOLDOWN_SECONDS:
-                    _LOGGER.info(
-                        "Cooldown period (%ds) elapsed for %s, resetting attempts and retrying",
-                        RECONNECT_COOLDOWN_SECONDS,
-                        self.address
-                    )
-                    self._reconnect_attempts = 0
-                    self._last_disconnect_time = None
                     return True
             # Cooldown not elapsed, device still unavailable
             return False
@@ -187,46 +187,60 @@ class GoveeAPI:
         self._ble_device = ble_device
 
     async def _retry_connection(self) -> bool:
+        """Attempt to reconnect with exponential backoff.
+
+        Acquires the connection lock and attempts to establish a BLE connection.
+        If connection fails, it retries up to MAX_RECONNECT_ATTEMPTS with
+        exponential backoff.
+
+        Returns:
+            True if reconnection succeeded or already connected, False otherwise.
         """
-        Attempt to reconnect with exponential backoff.
+        async with self._lock:
+            # Check if already connected after acquiring lock
+            if self._client is not None and self._client.is_connected:
+                _LOGGER.debug("Already connected to %s, no reconnection needed", self.address)
+                self._reconnect_attempts = 0
+                self._last_disconnect_time = None
+                return True
 
-        Returns True if reconnection succeeded, False if max attempts exceeded or skipped.
-        Logs all attempts at debug level.
-        """
-        # Check if reconnection is already in progress
-        if self._is_reconnecting:
-            _LOGGER.debug(
-                "Reconnection already in progress for %s, skipping",
-                self.address
-            )
-            return False
+            # Check/reset cooldown
+            if self._reconnect_attempts >= MAX_RECONNECT_ATTEMPTS:
+                if self._last_disconnect_time is not None:
+                    elapsed = time.time() - self._last_disconnect_time
+                    if elapsed >= RECONNECT_COOLDOWN_SECONDS:
+                        _LOGGER.info(
+                            "Cooldown period (%ds) elapsed for %s, resetting attempts and retrying",
+                            RECONNECT_COOLDOWN_SECONDS,
+                            self.address,
+                        )
+                        self._reconnect_attempts = 0
+                        self._last_disconnect_time = None
+                    else:
+                        _LOGGER.debug(
+                            "Device %s in cooldown period (%.0fs remaining)",
+                            self.address,
+                            RECONNECT_COOLDOWN_SECONDS - elapsed,
+                        )
+                        return False
+                else:
+                    return False
 
-        # Mark reconnection in progress before acquiring lock
-        self._is_reconnecting = True
-
-        try:
-            async with self._connection_lock:
-                # Check if already connected after acquiring lock
-                if self._client is not None and self._client.is_connected:
-                    _LOGGER.debug("Already connected to %s, no reconnection needed", self.address)
-                    # Reset attempts counter since we're connected
-                    self._reconnect_attempts = 0
-                    return False  # No reconnection performed
-
+            self._is_reconnecting = True
+            try:
                 while self._reconnect_attempts < MAX_RECONNECT_ATTEMPTS:
-                    # Calculate exponential backoff based on number of previous failures
                     # After N failures, wait base * (2 ** (N-1)) seconds: 1s, 2s, 4s, 8s...
                     if self._reconnect_attempts > 0:
                         backoff = min(
                             RECONNECT_BACKOFF_BASE * (2 ** (self._reconnect_attempts - 1)),
-                            RECONNECT_BACKOFF_MAX
+                            RECONNECT_BACKOFF_MAX,
                         )
                         _LOGGER.debug(
                             "Reconnection attempt %d/%d for %s, waiting %.1fs",
                             self._reconnect_attempts + 1,
                             MAX_RECONNECT_ATTEMPTS,
                             self.address,
-                            backoff
+                            backoff,
                         )
                         await asyncio.sleep(backoff)
                     else:
@@ -234,7 +248,7 @@ class GoveeAPI:
                             "Reconnection attempt %d/%d for %s",
                             self._reconnect_attempts + 1,
                             MAX_RECONNECT_ATTEMPTS,
-                            self.address
+                            self.address,
                         )
 
                     try:
@@ -252,12 +266,12 @@ class GoveeAPI:
 
                         # Success! Reset state and capture RSSI
                         self.rssi = self._ble_device.rssi
-                        self._connection_attempts.append(True)  # Record successful connection
+                        self._connection_attempts.append(True)
                         _LOGGER.debug(
                             "Reconnection successful for %s after %d attempts (RSSI: %s dBm)",
                             self.address,
                             self._reconnect_attempts + 1,
-                            self.rssi
+                            self.rssi,
                         )
                         self._reconnect_attempts = 0
                         self._last_disconnect_time = None
@@ -267,25 +281,25 @@ class GoveeAPI:
                     except Exception as err:
                         self._reconnect_attempts += 1
                         self._last_disconnect_time = time.time()
-                        self._connection_attempts.append(False)  # Record failed connection
+                        self._connection_attempts.append(False)
                         _LOGGER.debug(
                             "Reconnection attempt %d/%d failed for %s: %s",
                             self._reconnect_attempts,
                             MAX_RECONNECT_ATTEMPTS,
                             self.address,
-                            err
+                            err,
                         )
 
                 # Max attempts exceeded
                 _LOGGER.warning(
                     "Max reconnection attempts (%d) exceeded for %s, marking unavailable",
                     MAX_RECONNECT_ATTEMPTS,
-                    self.address
+                    self.address,
                 )
                 return False
 
-        finally:
-            self._is_reconnecting = False
+            finally:
+                self._is_reconnecting = False
 
     async def _ensure_connected(self) -> None:
         """Ensure the device is connected and notifications are started.
@@ -293,27 +307,15 @@ class GoveeAPI:
         Raises:
             ConnectionError: If connection cannot be established after retries.
         """
+        # Quick check without lock
         if self._client is not None and self._client.is_connected:
             return
-        # Use retry logic with exponential backoff
-        success = await self._retry_connection()
-        if not success:
+
+        # Use retry logic which handles locking and exponential backoff
+        if not await self._retry_connection():
             raise ConnectionError(
                 f"Failed to connect to {self.address} after {MAX_RECONNECT_ATTEMPTS} attempts"
             )
-        async with self._connect_lock:
-            if self._client is not None and self._client.is_connected:
-                return
-            self._client = await establish_connection(
-                BleakClient,
-                self._ble_device,
-                self.address,
-                max_attempts=self._max_attempts,
-                ble_device_callback_timeout=self._timeout,
-            )
-            await self._client.start_notify(READ_CHARACTERISTIC_UUID, self._handle_notification)
-            # Capture RSSI on successful connection
-            self.rssi = self._ble_device.rssi
 
     async def _write(self, packet: bytes) -> None:
         """Write a packet to the device's write characteristic.
@@ -323,14 +325,23 @@ class GoveeAPI:
         """
         await self._ensure_connected()
         assert self._client is not None  # _ensure_connected raises if connection fails
-        # Suppress state notifications for 500ms to prevent stale device state
-        # from overwriting optimistic updates
-        self._suppress_update_until = time.time() + 0.5
+        # Suppress state notifications for duration of suppression window
+        # to prevent stale device state from overwriting optimistic updates
+        self._suppress_update_until = time.time() + (self._suppression_window / 1000.0)
         await self._client.write_gatt_char(WRITE_CHARACTERISTIC_UUID, packet, False)
 
     async def _handle_notification(
         self, characteristic: BleakGATTCharacteristic | None, frame: bytearray
     ) -> None:
+        """Handle incoming GATT notifications from the device.
+
+        Parses the 20-byte frame and updates internal state (power, brightness, color).
+        Executes the update callback if the suppression window has elapsed.
+
+        Args:
+            characteristic: The GATT characteristic that sent the notification.
+            frame: The raw 20-byte notification frame.
+        """
         if len(frame) < 20:
             return
         xor = 0

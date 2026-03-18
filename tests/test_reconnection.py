@@ -143,14 +143,14 @@ async def test_concurrent_reconnection_prevented(api, mock_bleak_client):
         # Give it a moment to acquire the lock
         await asyncio.sleep(0.01)
 
-        # Start second reconnection attempt (should skip due to lock)
+        # Start second reconnection attempt (should succeed because it waits for the first)
         task2 = asyncio.create_task(api._retry_connection())
 
         result1 = await task1
         result2 = await task2
 
         assert result1 is True  # First attempt succeeds
-        assert result2 is False  # Second attempt skipped
+        assert result2 is True  # Second attempt also succeeds (waited for first)
         # establish_connection should only be called once
         assert mock_connect.call_count == 1
 
@@ -287,6 +287,10 @@ async def test_cooldown_resets_reconnection_counter(mock_ble_device, h6006_proto
     # Device should now be available (cooldown elapsed)
     assert api.is_available is True
 
-    # Counter should be reset
+    # Counter should ONLY be reset after calling _retry_connection
+    with patch("custom_components.govee_h6006.api.establish_connection", return_value=AsyncMock()):
+        await api._retry_connection()
+
+    # Now counter should be reset
     assert api._reconnect_attempts == 0
     assert api._last_disconnect_time is None

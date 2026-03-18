@@ -81,11 +81,11 @@ def build_frame(cmd: int, payload: list[int]) -> bytes:
     Returns:
         A 20-byte packet with XOR checksum in the final byte.
     """
-    _PACKET_LEN = 20
-    _CMD_HEAD = 0x33
+    _packet_len = 20
+    _cmd_head = 0x33
 
-    frame = [_CMD_HEAD, cmd & 0xFF] + payload
-    frame += [0] * (_PACKET_LEN - 1 - len(frame))
+    frame = [_cmd_head, cmd & 0xFF] + payload
+    frame += [0] * (_packet_len - 1 - len(frame))
     checksum = 0
     for b in frame:
         checksum ^= b

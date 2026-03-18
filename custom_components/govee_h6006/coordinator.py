@@ -4,7 +4,6 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional
 
 from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
@@ -123,7 +122,7 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
         self.data = self._snapshot()
 
         # Track active transition task for cancellation
-        self._transition_task: Optional[asyncio.Task] = None
+        self._transition_task: asyncio.Task | None = None
 
     @property
     def available(self) -> bool:
@@ -131,6 +130,11 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
         return self._api.is_available
 
     def _snapshot(self) -> GoveeData:
+        """Create a snapshot of the current API state.
+
+        Returns:
+            A GoveeData object containing all relevant state attributes.
+        """
         return GoveeData(
             state=self._api.state,
             brightness=self._api.brightness,
@@ -182,7 +186,8 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
         # Check if device is available before polling
         if not self._api.is_available:
             raise UpdateFailed(
-                f"Device {self.device_address} is unavailable after max reconnection attempts"
+                f"Device {self.device_address} is unavailable "
+                f"(state: {self._api.connection_state})"
             )
 
         try:

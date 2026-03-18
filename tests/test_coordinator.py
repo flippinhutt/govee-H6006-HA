@@ -151,7 +151,7 @@ async def test_coordinator_raises_update_failed_when_device_unavailable(
 
         coordinator = GoveeCoordinator(mock_hass, config_entry)
 
-        with pytest.raises(UpdateFailed, match="is unavailable after max reconnection attempts"):
+        with pytest.raises(UpdateFailed, match="is unavailable"):
             await coordinator._async_update_data()
 
 
