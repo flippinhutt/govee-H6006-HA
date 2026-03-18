@@ -109,7 +109,9 @@ async def test_notification_updates_state(api, mock_bleak_client, update_callbac
 async def test_api_passes_timeout_to_establish_connection(
     mock_ble_device, update_callback, mock_bleak_client
 ):
-    api = GoveeAPI(mock_ble_device, update_callback, timeout=20.0, max_attempts=3, model_type="H6006")
+    api = GoveeAPI(
+        mock_ble_device, update_callback, timeout=20.0, max_attempts=3, model_type="H6006"
+    )
     with patch("custom_components.govee_h6006.api.establish_connection",
                return_value=mock_bleak_client) as mock_connect:
         await api.set_power(True)
@@ -252,6 +254,19 @@ async def test_disconnection_during_write(api, mock_bleak_client):
 
 
 @pytest.mark.asyncio
+async def test_poll_state_with_max_attempts_override(api, mock_bleak_client):
+    """Test that poll_state respects the max_attempts override."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               side_effect=Exception("Connection failed")) as mock_connect:
+        with patch("asyncio.sleep"):
+            with pytest.raises(ConnectionError):
+                await api.poll_state(max_attempts=2)
+
+        # Should have called establish_connection twice (initial + 1 retry)
+        assert mock_connect.call_count == 2
+
+
+@pytest.mark.asyncio
 async def test_ensure_connected_failure_on_write(api, mock_bleak_client):
     """Test that connection failures during write are propagated after retries."""
     with patch("custom_components.govee_h6006.api.establish_connection") as mock_connect:
@@ -297,6 +312,31 @@ async def test_write_after_disconnection_reconnects(api, mock_bleak_client):
         # Second write should reconnect
         await api.set_power(False)
         assert mock_connect.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_reconnect_cleans_up_on_notify_failure(api, mock_bleak_client):
+    """Test that reconnection cleans up the client if start_notify fails."""
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               return_value=mock_bleak_client) as mock_connect, \
+         patch("asyncio.sleep"):
+
+        # Make start_notify fail
+        mock_bleak_client.start_notify.side_effect = Exception("Notify failed")
+
+        # Attempting an operation should try to connect, fail at notify, and clean up
+        with pytest.raises(ConnectionError):
+            await api.set_power(True)
+
+        # Should have attempted MAX_RECONNECT_ATTEMPTS (5)
+        from custom_components.govee_h6006.const import MAX_RECONNECT_ATTEMPTS
+        assert mock_connect.call_count == MAX_RECONNECT_ATTEMPTS
+
+        # Verify cleanup: api._client should be None
+        assert api._client is None
+
+        # Verify disconnect was called on each failed attempt
+        assert mock_bleak_client.disconnect.call_count == MAX_RECONNECT_ATTEMPTS
 
 
 @pytest.mark.asyncio

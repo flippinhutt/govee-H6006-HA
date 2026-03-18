@@ -1,7 +1,10 @@
 import asyncio
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
+
 from custom_components.govee_h6006.api import GoveeAPI
+
 
 @pytest.mark.asyncio
 async def test_concurrent_ensure_connected_failure(mock_ble_device):
@@ -12,7 +15,7 @@ async def test_concurrent_ensure_connected_failure(mock_ble_device):
     """
     update_callback = AsyncMock()
     api = GoveeAPI(mock_ble_device, update_callback)
-    
+
     # Mock establish_connection to be slow so we can trigger concurrency
     async def slow_connect(*args, **kwargs):
         await asyncio.sleep(0.1)
@@ -27,9 +30,9 @@ async def test_concurrent_ensure_connected_failure(mock_ble_device):
             api.set_power(False),
             return_exceptions=True
         )
-        
+
         # Check that both tasks succeeded
         for i, res in enumerate(results):
             assert not isinstance(res, Exception), f"Task {i} failed unexpectedly with: {res}"
-        
+
         print("\nVerified: Concurrent calls both succeeded!")

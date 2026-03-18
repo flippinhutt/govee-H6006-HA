@@ -1,5 +1,6 @@
 import enum
 import sys
+from datetime import UTC
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -202,8 +203,23 @@ _ha_entity_platform_stub = MagicMock()
 class _HomeAssistantError(Exception):
     """Stub for HomeAssistantError."""
 
+
+class _ConfigEntryNotReady(_HomeAssistantError):
+    """Stub for ConfigEntryNotReady."""
+
+
 _ha_exceptions_stub = MagicMock()
 _ha_exceptions_stub.HomeAssistantError = _HomeAssistantError
+_ha_exceptions_stub.ConfigEntryNotReady = _ConfigEntryNotReady
+
+# Stub homeassistant.util.dt
+_dt_util_stub = MagicMock()
+def _utc_from_timestamp(timestamp):
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(timestamp, UTC)
+
+_dt_util_stub.utc_from_timestamp = _utc_from_timestamp
+_dt_util_stub.utcnow = lambda: MagicMock() # Default mock for utcnow
 
 sys.modules["homeassistant"] = MagicMock()
 sys.modules["homeassistant.core"] = _ha_core_stub
@@ -222,6 +238,8 @@ sys.modules["homeassistant.helpers"] = MagicMock()
 sys.modules["homeassistant.helpers.update_coordinator"] = _ha_update_coordinator_stub
 sys.modules["homeassistant.helpers.entity_platform"] = _ha_entity_platform_stub
 sys.modules["homeassistant.helpers.entity"] = _ha_entity_stub
+sys.modules["homeassistant.util"] = MagicMock()
+sys.modules["homeassistant.util.dt"] = _dt_util_stub
 
 
 # ---------------------------------------------------------------------------

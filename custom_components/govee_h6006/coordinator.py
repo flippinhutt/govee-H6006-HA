@@ -5,11 +5,13 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from bleak import BLEDevice
 from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .api import GoveeAPI
 from .const import (
@@ -69,7 +71,13 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
             hass, self.device_address, connectable=True
         )
         if ble_device is None:
-            raise RuntimeError(f"BLE device {self.device_address} not found")
+            _LOGGER.debug(
+                "BLE device %s not found in cache during coordinator init",
+                self.device_address,
+            )
+            # Create a placeholder BLEDevice if not found in cache.
+            # GoveeAPI will refresh this in _async_update_data.
+            ble_device = BLEDevice(self.device_address, self.device_name, {}, 0)
 
         connection_timeout = config_entry.options.get(
             "connection_timeout", DEFAULT_CONNECTION_TIMEOUT
@@ -93,7 +101,8 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
         async def _init_device_info() -> None:
             """Query device information and log firmware version."""
             try:
-                await self._api.query_device_info()
+                # Use fast-fail limit during setup
+                await self._api.query_device_info(max_attempts=2)
                 if self._api.firmware_version:
                     _LOGGER.info(
                         f"Connected to {self.device_name} - "
@@ -122,7 +131,10 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
         self.data = self._snapshot()
 
         # Track active transition task for cancellation
-        self._transition_task: asyncio.Task | None = None
+        self._transition_task: asyncio.Task[None] | None = None
+
+        # Track if this is the first refresh to apply fast-fail logic
+        self._first_refresh = True
 
     @property
     def available(self) -> bool:
@@ -143,7 +155,7 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
             rssi=self._api.rssi,
             connection_success_rate=self._api.connection_success_rate,
             last_poll_time=(
-                datetime.fromtimestamp(self._api.last_poll_time)
+                dt_util.utc_from_timestamp(self._api.last_poll_time)
                 if self._api.last_poll_time
                 else None
             ),
@@ -191,9 +203,14 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
             )
 
         try:
-            await self._api.poll_state()
+            # For the first refresh, fail fast (2 attempts) to avoid hanging HA setup
+            # 2 attempts: 0s wait + 20s timeout + 1s wait + 20s timeout = ~41s max
+            max_attempts = 2 if self._first_refresh else None
+            await self._api.poll_state(max_attempts=max_attempts)
         except Exception as err:
             raise UpdateFailed(f"Error communicating with {self.device_address}: {err}") from err
+        finally:
+            self._first_refresh = False
 
         return self._snapshot()
 

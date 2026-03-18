@@ -59,4 +59,6 @@ The Home Assistant entity representation.
 - **Adaptive Backoff**: Connection retries follow an exponential backoff schedule (1s, 2s, 4s, 8s, 16s) up to 5 attempts.
 - **Cooldown Period**: If a device becomes unreachable, the integration enters a cooldown state for 60 seconds before resetting retry counters, preventing excessive CPU/Bluetooth usage.
 - **Unified Locking**: Uses a single `asyncio.Lock` to ensure only one connection attempt or command write occurs at a time per device, preventing race conditions.
+- **Connection Cleanup**: Automatically disconnects and clears the BLE client if post-connection steps (like starting notifications) fail, preventing resource leakage.
+- **Enhanced Diagnostics**: Key connection events and failures are logged at the `INFO` level to provide immediate visibility into device health.
 - **Configurable Suppression**: Dynamically adjusts the notification suppression window (default 500ms) to prevent stale device state from overwriting optimistic updates.

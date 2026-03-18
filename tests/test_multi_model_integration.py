@@ -1,10 +1,11 @@
 """Integration tests for multi-model support."""
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
 from homeassistant.config_entries import ConfigEntry
 
-from custom_components.govee_h6006.coordinator import GoveeCoordinator
 from custom_components.govee_h6006.const import DOMAIN
+from custom_components.govee_h6006.coordinator import GoveeCoordinator
 
 
 @pytest.fixture
@@ -22,7 +23,10 @@ def mock_hass(mock_ble_device):
     hass = Mock()
     hass.data = {}
 
-    with patch("custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address", return_value=mock_ble_device):
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ):
         yield hass
 
 
@@ -49,7 +53,7 @@ async def test_h6006_uses_h6006_protocol(mock_hass):
     entry = make_config_entry("H6006", "ihoment_H6006_1234")
 
     with patch("custom_components.govee_h6006.coordinator.GoveeAPI") as mock_api:
-        coordinator = GoveeCoordinator(mock_hass, entry)
+        GoveeCoordinator(mock_hass, entry)
 
         # Verify API was instantiated with model_type="H6006"
         mock_api.assert_called_once()
@@ -63,7 +67,7 @@ async def test_h6008_uses_h6008_protocol(mock_hass):
     entry = make_config_entry("H6008", "ihoment_H6008_5678")
 
     with patch("custom_components.govee_h6006.coordinator.GoveeAPI") as mock_api:
-        coordinator = GoveeCoordinator(mock_hass, entry)
+        GoveeCoordinator(mock_hass, entry)
 
         # Verify API was instantiated with model_type="H6008"
         mock_api.assert_called_once()
@@ -77,7 +81,7 @@ async def test_h6009_uses_h6009_protocol(mock_hass):
     entry = make_config_entry("H6009", "ihoment_H6009_9012")
 
     with patch("custom_components.govee_h6006.coordinator.GoveeAPI") as mock_api:
-        coordinator = GoveeCoordinator(mock_hass, entry)
+        GoveeCoordinator(mock_hass, entry)
 
         # Verify API was instantiated with model_type="H6009"
         mock_api.assert_called_once()
@@ -91,7 +95,7 @@ async def test_h6003_uses_h6003_protocol(mock_hass):
     entry = make_config_entry("H6003", "ihoment_H6003_3456")
 
     with patch("custom_components.govee_h6006.coordinator.GoveeAPI") as mock_api:
-        coordinator = GoveeCoordinator(mock_hass, entry)
+        GoveeCoordinator(mock_hass, entry)
 
         # Verify API was instantiated with model_type="H6003"
         mock_api.assert_called_once()
@@ -117,7 +121,7 @@ async def test_defaults_to_h6006_when_model_missing(mock_hass):
     )
 
     with patch("custom_components.govee_h6006.coordinator.GoveeAPI") as mock_api:
-        coordinator = GoveeCoordinator(mock_hass, entry)
+        GoveeCoordinator(mock_hass, entry)
 
         # Should default to H6006
         mock_api.assert_called_once()

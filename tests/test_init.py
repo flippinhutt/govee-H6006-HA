@@ -14,6 +14,9 @@ async def test_setup_entry_stores_coordinator(hass):
     config_entry.entry_id = "test_entry"
 
     with patch(
+        "custom_components.govee_h6006.__init__.bluetooth.async_ble_device_from_address",
+        return_value=MagicMock(),
+    ), patch(
         "custom_components.govee_h6006.__init__.GoveeCoordinator"
     ) as MockCoordinator:
         coordinator = AsyncMock()
@@ -41,3 +44,20 @@ async def test_unload_entry_cleans_up(hass):
 
         assert result is True
         assert "test_entry" not in hass.data.get(DOMAIN, {})
+
+
+@pytest.mark.asyncio
+async def test_setup_entry_raises_config_entry_not_ready_when_device_missing(hass):
+    """Test that async_setup_entry raises ConfigEntryNotReady when device is missing."""
+    config_entry = MagicMock()
+    config_entry.data = {"address": "AA:BB:CC:DD:EE:FF", "name": "ihoment_H6006"}
+    
+    with patch(
+        "custom_components.govee_h6006.__init__.bluetooth.async_ble_device_from_address",
+        return_value=None,
+    ):
+        from custom_components.govee_h6006 import async_setup_entry
+        from homeassistant.exceptions import ConfigEntryNotReady
+        
+        with pytest.raises(ConfigEntryNotReady):
+            await async_setup_entry(hass, config_entry)

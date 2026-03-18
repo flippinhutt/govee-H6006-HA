@@ -8,7 +8,7 @@ from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
     async_discovered_service_info,
 )
-from homeassistant.config_entries import ConfigFlow, OptionsFlow
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.core import callback
 
 from .const import (
@@ -145,6 +145,10 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
 
 class GoveeH6006OptionsFlowHandler(OptionsFlow):  # type: ignore[misc]
     """Handle options flow for Govee H6006."""
+
+    def __init__(self, config_entry: ConfigEntry) -> None:
+        """Initialize options flow."""
+        self.config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None

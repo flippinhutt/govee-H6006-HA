@@ -5,6 +5,17 @@ All notable changes to the Govee H6006 Home Assistant integration are documented
 ## [Unreleased]
 
 ### Fixed
+- **Setup Reliability** — Fixed a race condition where a background device info task was blocking the first refresh with a 5-retry connection cycle; both now correctly use a 2-attempt fast-fail limit during setup.
+- **Setup Reliability** — Fixed `RuntimeError` during integration setup by raising `ConfigEntryNotReady` when the BLE device is missing from the cache, allowing Home Assistant to retry setup automatically.
+- **Setup Stability** — Implemented fast-fail logic (2 attempts max) during Home Assistant's initial setup to prevent the "Waiting for integrations to complete setup" hang.
+- **Retry Logic Bug** — Fixed a bug in `GoveeAPI` where the instance-configured `max_attempts` was ignored in logging and `establish_connection` calls.
+- **Timezone Awareness** — Resolved `ValueError` in `last_poll` sensor by using timezone-aware UTC datetimes via Home Assistant utilities.
+- **Options Flow** — Fixed `TypeError` in `GoveeH6006OptionsFlowHandler` by correctly implementing `__init__` to accept `config_entry`.
+- **BLE Connection Stability** — Enhanced `_retry_connection` with proper cleanup of dangling connections and elevated diagnostic logs to `INFO`.
+- **CI Compliance** — Resolved 29 Ruff linting errors and 2 Mypy failures, achieving full compliance with GitHub Actions.
+- **Integration Metadata** — Added custom icons for Home Assistant and HACS compatibility.
+
+### Fixed
 - **BLE Connection Reliability** — Core connection logic refactored for high stability:
   - **Unified Locking** — Replaced redundant locks with a single `asyncio.Lock` to prevent race conditions during concurrent commands.
   - **Concurrency Bug** — Fixed a critical issue where concurrent calls to `_ensure_connected` would incorrectly raise a `ConnectionError` if a reconnection was already in progress.

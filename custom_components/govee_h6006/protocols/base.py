@@ -67,6 +67,20 @@ class GoveeProtocol(ABC):
             20-byte BLE command packet.
         """
 
+    @staticmethod
+    def color_temp(kelvin: int) -> bytes:
+        """Build a color temperature command packet.
+
+        Args:
+            kelvin: Color temperature in Kelvin.
+
+        Returns:
+            20-byte BLE command packet.
+
+        Raises:
+            NotImplementedError: If not implemented by subclass.
+        """
+        raise NotImplementedError("Color temperature not supported by this model")
 
 def build_frame(cmd: int, payload: list[int]) -> bytes:
     """Build a 20-byte command packet for the Govee BLE protocol.

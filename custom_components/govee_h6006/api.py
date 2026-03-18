@@ -186,16 +186,19 @@ class GoveeAPI:
         """
         self._ble_device = ble_device
 
-    async def _retry_connection(self) -> bool:
+    async def _retry_connection(self, max_attempts: int | None = None) -> bool:
         """Attempt to reconnect with exponential backoff.
 
         Acquires the connection lock and attempts to establish a BLE connection.
-        If connection fails, it retries up to MAX_RECONNECT_ATTEMPTS with
-        exponential backoff.
+        If connection fails, it retries up to max_attempts (or self._max_attempts).
+
+        Args:
+            max_attempts: Optional override for maximum connection attempts.
 
         Returns:
             True if reconnection succeeded or already connected, False otherwise.
         """
+        limit = max_attempts if max_attempts is not None else self._max_attempts
         async with self._lock:
             # Check if already connected after acquiring lock
             if self._client is not None and self._client.is_connected:
@@ -205,7 +208,7 @@ class GoveeAPI:
                 return True
 
             # Check/reset cooldown
-            if self._reconnect_attempts >= MAX_RECONNECT_ATTEMPTS:
+            if self._reconnect_attempts >= limit:
                 if self._last_disconnect_time is not None:
                     elapsed = time.time() - self._last_disconnect_time
                     if elapsed >= RECONNECT_COOLDOWN_SECONDS:
@@ -228,7 +231,7 @@ class GoveeAPI:
 
             self._is_reconnecting = True
             try:
-                while self._reconnect_attempts < MAX_RECONNECT_ATTEMPTS:
+                while self._reconnect_attempts < limit:
                     # After N failures, wait base * (2 ** (N-1)) seconds: 1s, 2s, 4s, 8s...
                     if self._reconnect_attempts > 0:
                         backoff = min(
@@ -238,16 +241,16 @@ class GoveeAPI:
                         _LOGGER.debug(
                             "Reconnection attempt %d/%d for %s, waiting %.1fs",
                             self._reconnect_attempts + 1,
-                            MAX_RECONNECT_ATTEMPTS,
+                            limit,
                             self.address,
                             backoff,
                         )
                         await asyncio.sleep(backoff)
                     else:
-                        _LOGGER.debug(
+                        _LOGGER.info(
                             "Reconnection attempt %d/%d for %s",
                             self._reconnect_attempts + 1,
-                            MAX_RECONNECT_ATTEMPTS,
+                            limit,
                             self.address,
                         )
 
@@ -257,7 +260,7 @@ class GoveeAPI:
                             BleakClient,
                             self._ble_device,
                             self.address,
-                            max_attempts=self._max_attempts,
+                            max_attempts=limit,
                             ble_device_callback_timeout=self._timeout,
                         )
                         await self._client.start_notify(
@@ -282,18 +285,29 @@ class GoveeAPI:
                         self._reconnect_attempts += 1
                         self._last_disconnect_time = time.time()
                         self._connection_attempts.append(False)
-                        _LOGGER.debug(
+                        _LOGGER.info(
                             "Reconnection attempt %d/%d failed for %s: %s",
                             self._reconnect_attempts,
-                            MAX_RECONNECT_ATTEMPTS,
+                            limit,
                             self.address,
                             err,
                         )
+                        if self._client is not None:
+                            _LOGGER.debug("Cleaning up failed connection for %s", self.address)
+                            try:
+                                await self._client.disconnect()
+                            except Exception as disconnect_err:
+                                _LOGGER.debug(
+                                    "Error during cleanup disconnect for %s: %s",
+                                    self.address,
+                                    disconnect_err,
+                                )
+                            self._client = None
 
                 # Max attempts exceeded
                 _LOGGER.warning(
                     "Max reconnection attempts (%d) exceeded for %s, marking unavailable",
-                    MAX_RECONNECT_ATTEMPTS,
+                    limit,
                     self.address,
                 )
                 return False
@@ -301,8 +315,11 @@ class GoveeAPI:
             finally:
                 self._is_reconnecting = False
 
-    async def _ensure_connected(self) -> None:
+    async def _ensure_connected(self, max_attempts: int | None = None) -> None:
         """Ensure the device is connected and notifications are started.
+
+        Args:
+            max_attempts: Optional override for maximum connection attempts.
 
         Raises:
             ConnectionError: If connection cannot be established after retries.
@@ -312,9 +329,10 @@ class GoveeAPI:
             return
 
         # Use retry logic which handles locking and exponential backoff
-        if not await self._retry_connection():
+        if not await self._retry_connection(max_attempts=max_attempts):
+            limit = max_attempts if max_attempts is not None else self._max_attempts
             raise ConnectionError(
-                f"Failed to connect to {self.address} after {MAX_RECONNECT_ATTEMPTS} attempts"
+                f"Failed to connect to {self.address} after {limit} attempts"
             )
 
     async def _write(self, packet: bytes) -> None:
@@ -389,13 +407,16 @@ class GoveeAPI:
         except Exception as err:
             _LOGGER.error(f"Error handling notification: {err}")
 
-    async def poll_state(self) -> None:
+    async def poll_state(self, max_attempts: int | None = None) -> None:
         """Request current power, brightness, and color state from the device.
 
         Sends state-query commands for power, brightness, and color. Responses
         will flow back via the notification handler.
+
+        Args:
+            max_attempts: Optional override for maximum connection attempts.
         """
-        await self._ensure_connected()
+        await self._ensure_connected(max_attempts=max_attempts)
         assert self._client is not None  # _ensure_connected raises if connection fails
         _LOGGER.debug("Polling device state")
         for cmd in (_POWER_CMD, _BRIGHTNESS_CMD, _COLOR_CMD):
@@ -405,14 +426,17 @@ class GoveeAPI:
         # Record timestamp of successful poll
         self.last_poll_time = time.time()
 
-    async def query_device_info(self) -> None:
+    async def query_device_info(self, max_attempts: int | None = None) -> None:
         """Query device information from BLE Device Information Service (DIS).
 
         Reads firmware version, hardware revision, and model number from standard
         BLE DIS characteristics. Sets attributes to 'Unknown' if characteristics
         are not available or cannot be read.
+
+        Args:
+            max_attempts: Optional override for maximum connection attempts.
         """
-        await self._ensure_connected()
+        await self._ensure_connected(max_attempts=max_attempts)
         assert self._client is not None  # _ensure_connected raises if connection fails
         _LOGGER.debug("Querying device information")
 

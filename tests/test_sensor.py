@@ -1,9 +1,9 @@
-from datetime import datetime
 from unittest.mock import MagicMock
 
 from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.const import PERCENTAGE, SIGNAL_STRENGTH_DECIBELS_MILLIWATT
 from homeassistant.helpers.entity import EntityCategory
+from homeassistant.util import dt as dt_util
 
 from custom_components.govee_h6006.coordinator import GoveeData
 from custom_components.govee_h6006.sensor import (
@@ -85,7 +85,7 @@ def test_connection_success_rate_sensor_properties():
 
 
 def test_last_poll_sensor_native_value():
-    test_time = datetime(2026, 3, 15, 12, 0, 0)
+    test_time = dt_util.utc_from_timestamp(1742241600)  # 2026-03-17 20:00:00 UTC
     coordinator = make_coordinator(last_poll_time=test_time)
     sensor = GoveeLastPollSensor(coordinator, make_config_entry())
     assert sensor.native_value == test_time

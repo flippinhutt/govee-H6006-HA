@@ -1,3 +1,4 @@
+import asyncio
 from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -53,13 +54,15 @@ async def test_coordinator_polls_device_state(mock_hass, config_entry, mock_ble_
         assert data.total_reconnections == 2
 
 
-def test_coordinator_raises_when_device_not_found(mock_hass, config_entry):
+def test_coordinator_handles_missing_device_on_init(mock_hass, config_entry):
+    """Test that coordinator handles missing BLE device during initialization."""
     with patch(
         "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
         return_value=None,
     ):
-        with pytest.raises(Exception):
-            GoveeCoordinator(mock_hass, config_entry)
+        # Should not raise RuntimeError anymore
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+        assert coordinator.device_address == config_entry.data["address"]
 
 
 @pytest.mark.asyncio
@@ -96,9 +99,48 @@ def test_coordinator_uses_polling_interval_from_options(mock_hass, config_entry,
         assert coordinator.update_interval == timedelta(seconds=60)
 
 
-def test_coordinator_uses_default_polling_interval_when_not_in_options(
-    mock_hass, config_entry, mock_ble_device
-):
+@pytest.mark.asyncio
+async def test_coordinator_first_refresh_fast_fail(mock_hass, config_entry, mock_ble_device):
+    """Test that the first refresh uses fast-fail logic (2 attempts)."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI:
+        api_instance = AsyncMock()
+        MockAPI.return_value = api_instance
+        
+        # Initialize coordinator
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+        
+        # First refresh
+        await coordinator._async_update_data()
+        api_instance.poll_state.assert_called_once_with(max_attempts=2)
+        
+        # Second refresh (polling)
+        api_instance.poll_state.reset_mock()
+        await coordinator._async_update_data()
+        api_instance.poll_state.assert_called_with(max_attempts=None)
+
+
+@pytest.mark.asyncio
+async def test_coordinator_init_queries_device_info_with_limit(mock_hass, config_entry, mock_ble_device):
+    """Test that the background device info task uses fast-fail limit during init."""
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI:
+        api_instance = AsyncMock()
+        MockAPI.return_value = api_instance
+        
+        # Initialize coordinator
+        # The background task is created on init
+        GoveeCoordinator(mock_hass, config_entry)
+        
+        # Verify the task was created and run it
+        await mock_hass.async_block_till_done()
+        
+        # Verify it was called with limit
+        api_instance.query_device_info.assert_called_once_with(max_attempts=2)
     """Test that coordinator uses default polling interval when not specified in options."""
     with patch(
         "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
@@ -306,7 +348,7 @@ async def test_coordinator_set_brightness_with_transition_interpolates_values(
         return_value=mock_ble_device,
     ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI, patch(
         "custom_components.govee_h6006.coordinator.asyncio.sleep"
-    ) as mock_sleep:
+    ):
         api_instance = AsyncMock()
         api_instance.state = True
         api_instance.brightness = 100
@@ -331,7 +373,8 @@ async def test_coordinator_set_brightness_with_transition_interpolates_values(
 async def test_coordinator_set_brightness_with_transition_falls_back_to_instant_when_too_short(
     mock_hass, config_entry, mock_ble_device
 ):
-    """Test that set_brightness_with_transition falls back to instant change for very short transitions."""
+    """Test that set_brightness_with_transition falls back to instant change
+    for very short transitions."""
     with patch(
         "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
         return_value=mock_ble_device,
@@ -356,7 +399,8 @@ async def test_coordinator_set_brightness_with_transition_falls_back_to_instant_
 async def test_coordinator_set_brightness_with_transition_falls_back_when_brightness_none(
     mock_hass, config_entry, mock_ble_device
 ):
-    """Test that set_brightness_with_transition falls back to instant change when brightness is None."""
+    """Test that set_brightness_with_transition falls back to instant change
+    when brightness is None."""
     with patch(
         "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
         return_value=mock_ble_device,
@@ -382,14 +426,13 @@ async def test_coordinator_set_brightness_with_transition_clamps_duration(
     mock_hass, config_entry, mock_ble_device
 ):
     """Test that set_brightness_with_transition clamps transition duration to allowed range."""
-    from custom_components.govee_h6006.const import MAX_TRANSITION_DURATION
 
     with patch(
         "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
         return_value=mock_ble_device,
     ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI, patch(
         "custom_components.govee_h6006.coordinator.asyncio.sleep"
-    ) as mock_sleep:
+    ):
         api_instance = AsyncMock()
         api_instance.state = True
         api_instance.brightness = 100
@@ -459,7 +502,7 @@ async def test_coordinator_set_color_rgb_with_transition_interpolates_values(
         return_value=mock_ble_device,
     ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI, patch(
         "custom_components.govee_h6006.coordinator.asyncio.sleep"
-    ) as mock_sleep:
+    ):
         api_instance = AsyncMock()
         api_instance.state = True
         api_instance.brightness = 255
@@ -484,7 +527,8 @@ async def test_coordinator_set_color_rgb_with_transition_interpolates_values(
 async def test_coordinator_set_color_rgb_with_transition_falls_back_when_color_rgb_none(
     mock_hass, config_entry, mock_ble_device
 ):
-    """Test that set_color_rgb_with_transition falls back to instant change when color_rgb is None."""
+    """Test that set_color_rgb_with_transition falls back to instant change
+    when color_rgb is None."""
     with patch(
         "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
         return_value=mock_ble_device,
@@ -515,7 +559,7 @@ async def test_coordinator_set_color_rgb_with_transition_clears_color_temp(
         return_value=mock_ble_device,
     ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI, patch(
         "custom_components.govee_h6006.coordinator.asyncio.sleep"
-    ) as mock_sleep:
+    ):
         api_instance = AsyncMock()
         api_instance.state = True
         api_instance.brightness = 255
@@ -542,7 +586,7 @@ async def test_coordinator_set_color_temp_with_transition_interpolates_values(
         return_value=mock_ble_device,
     ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI, patch(
         "custom_components.govee_h6006.coordinator.asyncio.sleep"
-    ) as mock_sleep:
+    ):
         api_instance = AsyncMock()
         api_instance.state = True
         api_instance.brightness = 255
@@ -567,7 +611,8 @@ async def test_coordinator_set_color_temp_with_transition_interpolates_values(
 async def test_coordinator_set_color_temp_with_transition_falls_back_when_color_temp_none(
     mock_hass, config_entry, mock_ble_device
 ):
-    """Test that set_color_temp_with_transition falls back to instant change when color_temp is None."""
+    """Test that set_color_temp_with_transition falls back to instant change
+    when color_temp is None."""
     with patch(
         "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
         return_value=mock_ble_device,
@@ -598,7 +643,7 @@ async def test_coordinator_set_color_temp_with_transition_clears_color_rgb(
         return_value=mock_ble_device,
     ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI, patch(
         "custom_components.govee_h6006.coordinator.asyncio.sleep"
-    ) as mock_sleep:
+    ):
         api_instance = AsyncMock()
         api_instance.state = True
         api_instance.brightness = 255
