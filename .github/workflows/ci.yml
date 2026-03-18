@@ -38,11 +38,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install dependencies
-        run: |
-          pip install mypy
-          pip install bleak-retry-connector homeassistant
+        run: pip install mypy bleak-retry-connector
       - name: Run Mypy
-        run: mypy .
+        run: mypy custom_components/govee_h6006
 
   test:
     name: Test (Python ${{ matrix.python-version }})

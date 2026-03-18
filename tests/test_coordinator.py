@@ -1,4 +1,3 @@
-import asyncio
 from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -108,14 +107,14 @@ async def test_coordinator_first_refresh_fast_fail(mock_hass, config_entry, mock
     ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI:
         api_instance = AsyncMock()
         MockAPI.return_value = api_instance
-        
+
         # Initialize coordinator
         coordinator = GoveeCoordinator(mock_hass, config_entry)
-        
+
         # First refresh
         await coordinator._async_update_data()
         api_instance.poll_state.assert_called_once_with(max_attempts=2)
-        
+
         # Second refresh (polling)
         api_instance.poll_state.reset_mock()
         await coordinator._async_update_data()
@@ -123,7 +122,9 @@ async def test_coordinator_first_refresh_fast_fail(mock_hass, config_entry, mock
 
 
 @pytest.mark.asyncio
-async def test_coordinator_init_queries_device_info_with_limit(mock_hass, config_entry, mock_ble_device):
+async def test_coordinator_init_queries_device_info_with_limit(
+    mock_hass, config_entry, mock_ble_device
+):
     """Test that the background device info task uses fast-fail limit during init."""
     with patch(
         "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
@@ -131,14 +132,14 @@ async def test_coordinator_init_queries_device_info_with_limit(mock_hass, config
     ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI:
         api_instance = AsyncMock()
         MockAPI.return_value = api_instance
-        
+
         # Initialize coordinator
         # The background task is created on init
         GoveeCoordinator(mock_hass, config_entry)
-        
+
         # Verify the task was created and run it
         await mock_hass.async_block_till_done()
-        
+
         # Verify it was called with limit
         api_instance.query_device_info.assert_called_once_with(max_attempts=2)
     """Test that coordinator uses default polling interval when not specified in options."""

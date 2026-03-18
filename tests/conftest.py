@@ -204,13 +204,13 @@ class _HomeAssistantError(Exception):
     """Stub for HomeAssistantError."""
 
 
-class _ConfigEntryNotReady(_HomeAssistantError):
+class _ConfigEntryNotReadyError(_HomeAssistantError):
     """Stub for ConfigEntryNotReady."""
 
 
 _ha_exceptions_stub = MagicMock()
 _ha_exceptions_stub.HomeAssistantError = _HomeAssistantError
-_ha_exceptions_stub.ConfigEntryNotReady = _ConfigEntryNotReady
+_ha_exceptions_stub.ConfigEntryNotReady = _ConfigEntryNotReadyError
 
 # Stub homeassistant.util.dt
 _dt_util_stub = MagicMock()
