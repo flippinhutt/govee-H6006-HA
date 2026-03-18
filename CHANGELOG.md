@@ -2,7 +2,13 @@
 
 All notable changes to the Govee H6006 Home Assistant integration are documented here.
 
-## [Unreleased]
+## [1.0.0] - 2026-03-17
+
+### Added
+- **Smooth Transitions** — Implemented software-based linear interpolation for brightness, RGB color, and color temperature transitions.
+- **Configurable Transitions** — Added support for the `transition` parameter in `light.turn_on` service for all supported models.
+- **Non-blocking Initialization** — Device information (firmware, hardware, model) is now queried asynchronously during setup to prevent blocking Home Assistant startup.
+- **Improved BLE Compatibility** — Enhanced RSSI retrieval safety and added support for graceful coordinator shutdown with task cancellation.
 
 ### Fixed
 - **Setup Reliability** — Fixed a race condition where a background device info task was blocking the first refresh with a 5-retry connection cycle; both now correctly use a 2-attempt fast-fail limit during setup.

@@ -105,13 +105,17 @@ custom_components/govee_h6006/
 
 **Multi-model protocol architecture:** The integration uses a pluggable protocol system to support multiple Govee models (H6006, H6008, H6009, H6003). Each protocol class implements the `GoveeProtocol` interface with static methods for command packet building (power, brightness, RGB, color temp). Protocol selection happens automatically based on the `model_type` config entry field. All protocols build 20-byte packets with command frames (head `0x33`) and XOR checksum validation.
 
+**Smooth transitions:** Software-based linear interpolation for brightness, RGB, and color temperature. Enabled via the `transition` parameter in `light.turn_on`. Managed by `Coordinator` tasks with 0.1s update intervals.
+
+**Non-blocking device info:** Firmware, hardware, and model are queried asynchronously after setup. Initial setup uses a 2-attempt fast-fail limit to avoid blocking Home Assistant startup.
+
 **Two packet heads:** Command frames use `0x33` (built by protocol classes). Query/response frames use `0xAA` (built/parsed in `api.py`). Both are 20 bytes with XOR checksum in the last byte.
 
 **Data flow:** `LightEntity` -> `GoveeCoordinator` -> `GoveeAPI(model_type)` -> Protocol class static methods -> BLE write. Notifications flow back via `_handle_notification` callback -> `coordinator.async_set_updated_data`.
 
 **Adding new models:** See `docs/adding_new_models.md` for a complete guide on creating new protocol classes for additional Govee models.
 
-**Device info:** Firmware version, hardware revision, and model number are queried from standard BLE Device Information Service (DIS) characteristics on startup. The `GoveeAPI.query_device_info()` method reads these characteristics and stores them as instance attributes. The coordinator calls this method during initialization and logs firmware version at INFO level. Device info is displayed in the Home Assistant device info panel via the `device_info` property on entity classes.
+**Device info:** Firmware version, hardware revision, and model number are queried from standard BLE Device Information Service (DIS) characteristics on startup. The `GoveeAPI.query_device_info()` method reads these characteristics and stores them as instance attributes. The coordinator calls this method in a background task during initialization and logs firmware version at INFO level. Device info is displayed in the Home Assistant device info panel via the `device_info` property on entity classes.
 
 **Test stubs:** `conftest.py` patches `sys.modules` to stub all external dependencies (homeassistant, bleak, voluptuous). Tests run without any of these packages installed. The `_FlowManager` in conftest directly invokes config flow steps.
 

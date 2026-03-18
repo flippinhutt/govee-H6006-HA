@@ -62,3 +62,19 @@ The Home Assistant entity representation.
 - **Connection Cleanup**: Automatically disconnects and clears the BLE client if post-connection steps (like starting notifications) fail, preventing resource leakage.
 - **Enhanced Diagnostics**: Key connection events and failures are logged at the `INFO` level to provide immediate visibility into device health.
 - **Configurable Suppression**: Dynamically adjusts the notification suppression window (default 500ms) to prevent stale device state from overwriting optimistic updates.
+
+## Advanced Features
+
+### Smooth Transitions (Software-based)
+
+The integration implements smooth brightness and color transitions using software-based linear interpolation. When a transition duration is specified in Home Assistant:
+1. The `Coordinator` cancels any existing transition tasks.
+2. A new asynchronous task calculates intermediate states based on the `TRANSITION_UPDATE_INTERVAL` (default 0.1s).
+3. The `Coordinator` sends sequential BLE commands for each step, updating its internal state to ensure the UI follows the transition smoothly.
+4. If a manual command is received during a transition, the active transition is immediately cancelled to prioritize user intent.
+
+### Non-blocking Initialization
+
+To ensure a fast and reliable Home Assistant startup:
+- **Asynchronous Discovery**: Device information (firmware, hardware, model) is queried in a background task after the integration has finished its main setup.
+- **Fast-fail Logic**: The first state refresh uses a strict 2-attempt limit. This prevents the "Waiting for integrations to complete setup" warning if a device is temporarily out of range, allowing Home Assistant to proceed while the integration continues to try reconnecting in the background.
