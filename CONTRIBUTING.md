@@ -61,8 +61,8 @@ This integration uses **no build step** and has **no requirements.txt**. All dep
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/flippinhutt/govee.git
-cd govee
+git clone https://github.com/flippinhutt/govee-H6006-HA.git
+cd govee-H6006-HA
 ```
 
 ### Install Development Tools

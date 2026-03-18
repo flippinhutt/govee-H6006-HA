@@ -10,7 +10,7 @@
   "codeowners": ["@flippinhutt"],
   "config_flow": true,
   "dependencies": ["bluetooth"],
-  "documentation": "https://github.com/flippinhutt/govee",
+  "documentation": "https://github.com/flippinhutt/govee-H6006-HA",
   "iot_class": "local_push",
   "requirements": ["bleak-retry-connector>=3.0.0"],
   "version": "1.0.0"

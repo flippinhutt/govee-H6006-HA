@@ -1,10 +1,10 @@
 # Govee H6006 BLE Integration for Home Assistant 🏠
 
 [![hacs](https://img.shields.io/badge/HACS-Integration-blue.svg?style=for-the-badge)](https://github.com/hacs/integration)
-[![CI](https://img.shields.io/github/actions/workflow/status/flippinhutt/govee/ci.yml?style=for-the-badge&label=CI)](https://github.com/flippinhutt/govee/actions/workflows/ci.yml)
-[![GitHub Release](https://img.shields.io/github/v/release/flippinhutt/govee?sort=semver&style=for-the-badge&color=green)](https://github.com/flippinhutt/govee/releases/)
-[![GitHub Release Date](https://img.shields.io/github/release-date/flippinhutt/govee?style=for-the-badge&color=green)](https://github.com/flippinhutt/govee/releases/)
-![GitHub commit activity](https://img.shields.io/github/commit-activity/m/flippinhutt/govee?style=for-the-badge)
+[![CI](https://img.shields.io/github/actions/workflow/status/flippinhutt/govee-H6006-HA/ci.yml?style=for-the-badge&label=CI)](https://github.com/flippinhutt/govee-H6006-HA/actions/workflows/ci.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/flippinhutt/govee-H6006-HA?sort=semver&style=for-the-badge&color=green)](https://github.com/flippinhutt/govee-H6006-HA/releases/)
+[![GitHub Release Date](https://img.shields.io/github/release-date/flippinhutt/govee-H6006-HA?style=for-the-badge&color=green)](https://github.com/flippinhutt/govee-H6006-HA/releases/)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/flippinhutt/govee-H6006-HA?style=for-the-badge)
 
 ## Overview
 
@@ -58,7 +58,7 @@ This integration supports the following Govee BLE bulb models:
 3. Go to any of the sections (integrations, frontend, automation)
 4. Click on the 3 dots in the top right corner
 5. Select "Custom repositories"
-6. Add the following URL: `https://github.com/flippinhutt/govee`
+6. Add the following URL: `https://github.com/flippinhutt/govee-H6006-HA`
 7. Select **Integration** as the category
 8. Click the "ADD" button
 9. Search for "Govee H6006 BLE"
@@ -67,13 +67,13 @@ This integration supports the following Govee BLE bulb models:
 
 ### Manual Installation
 
-To install manually, download [the latest release](https://github.com/flippinhutt/govee/releases/latest/) and extract the contents to your `config/custom_components` directory:
+To install manually, download [the latest release](https://github.com/flippinhutt/govee-H6006-HA/releases/latest/) and extract the contents to your `config/custom_components` directory:
 
 ```bash
 cd /config  # or wherever your Home Assistant config directory is
 mkdir -p custom_components
 cd custom_components
-wget https://github.com/flippinhutt/govee/releases/latest/download/govee_h6006.zip
+wget https://github.com/flippinhutt/govee-H6006-HA/releases/latest/download/govee_h6006.zip
 unzip govee_h6006.zip -d govee_h6006
 rm govee_h6006.zip
 ```
@@ -265,10 +265,10 @@ We welcome contributions from the community! Whether you want to report a bug, r
 
 ### Quick Links
 
-- **Report a bug**: [Submit a bug report](https://github.com/flippinhutt/govee/issues/new/choose)
-- **Request a feature**: [Request a feature](https://github.com/flippinhutt/govee/issues/new/choose)
-- **Request device support**: [Request device support](https://github.com/flippinhutt/govee/issues/new/choose)
-- **Ask questions**: Join the conversation in [GitHub Discussions](https://github.com/flippinhutt/govee/discussions)
+- **Report a bug**: [Submit a bug report](https://github.com/flippinhutt/govee-H6006-HA/issues/new/choose)
+- **Request a feature**: [Request a feature](https://github.com/flippinhutt/govee-H6006-HA/issues/new/choose)
+- **Request device support**: [Request device support](https://github.com/flippinhutt/govee-H6006-HA/issues/new/choose)
+- **Ask questions**: Join the conversation in [GitHub Discussions](https://github.com/flippinhutt/govee-H6006-HA/discussions)
 
 ### Adding Support for New Models
 
