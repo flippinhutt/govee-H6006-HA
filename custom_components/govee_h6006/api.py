@@ -268,7 +268,8 @@ class GoveeAPI:
                         )
 
                         # Success! Reset state and capture RSSI
-                        self.rssi = self._ble_device.rssi
+                        # BLEDevice.rssi is not available in all bleak versions
+                        self.rssi = getattr(self._ble_device, "rssi", None)
                         self._connection_attempts.append(True)
                         _LOGGER.debug(
                             "Reconnection successful for %s after %d attempts (RSSI: %s dBm)",

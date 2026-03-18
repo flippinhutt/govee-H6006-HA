@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -1012,3 +1012,25 @@ async def test_query_device_info_decode_error(api, mock_bleak_client):
         assert api.firmware_version == "Unknown"
         assert api.hardware_version == "HW_V1.0"
         assert api.model_number == "H6006"
+
+
+@pytest.mark.asyncio
+async def test_connect_succeeds_when_ble_device_has_no_rssi_attribute(
+    mock_bleak_client, update_callback
+):
+    """BLEDevice.rssi was removed in newer bleak versions.
+    Connection should succeed and rssi should be None, not crash."""
+    device = MagicMock(spec=["address", "name"])  # no rssi attribute
+    device.address = "AA:BB:CC:DD:EE:FF"
+    device.name = "ihoment_H6006"
+
+    api = GoveeAPI(device, update_callback, model_type="H6006")
+
+    with patch(
+        "custom_components.govee_h6006.api.establish_connection",
+        return_value=mock_bleak_client,
+    ):
+        await api.set_power(True)  # should not raise
+
+    assert mock_bleak_client.write_gatt_char.called
+    assert api.rssi is None

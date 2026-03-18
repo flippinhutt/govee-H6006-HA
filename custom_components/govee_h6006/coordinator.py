@@ -115,8 +115,8 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
             except Exception as err:
                 _LOGGER.debug(f"Failed to query device info: {err}")
 
-        # Schedule the task
-        hass.async_create_task(_init_device_info())
+        # Schedule the task and store handle for cancellation on shutdown
+        self._device_info_task = hass.async_create_task(_init_device_info())
 
         polling_interval = config_entry.options.get("polling_interval", DEFAULT_POLLING_INTERVAL)
 
@@ -135,6 +135,12 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
 
         # Track if this is the first refresh to apply fast-fail logic
         self._first_refresh = True
+
+    async def async_shutdown(self) -> None:
+        """Cancel background tasks on shutdown."""
+        if self._device_info_task and not self._device_info_task.done():
+            self._device_info_task.cancel()
+        await super().async_shutdown()
 
     @property
     def available(self) -> bool:
