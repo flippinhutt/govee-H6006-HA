@@ -51,6 +51,9 @@ class _DataUpdateCoordinator:
     async def async_config_entry_first_refresh(self):
         pass
 
+    async def async_shutdown(self):
+        pass
+
 
 class _FlowResultType(enum.StrEnum):
     FORM = "form"
@@ -96,9 +99,16 @@ class _ConfigFlow:
         }
 
 class _OptionsFlow:
-    """Minimal OptionsFlow base."""
-    def __init__(self, config_entry):
-        self.config_entry = config_entry
+    """Minimal OptionsFlow base. Like real HA, config_entry is read-only."""
+    _config_entry = None
+
+    @property
+    def config_entry(self):
+        return self._config_entry
+
+    @config_entry.setter
+    def config_entry(self, value):
+        raise AttributeError("config_entry is read-only; HA sets it")
 
     def async_show_form(self, *, step_id, data_schema=None, errors=None, description_placeholders=None):
         """Show a form to the user."""

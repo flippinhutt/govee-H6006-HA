@@ -140,6 +140,8 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
         """Cancel background tasks on shutdown."""
         if self._device_info_task and not self._device_info_task.done():
             self._device_info_task.cancel()
+        self._cancel_transition()
+        await self._api.disconnect()
         await super().async_shutdown()
 
     @property
@@ -229,6 +231,7 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
         Raises:
             HomeAssistantError: If command execution fails.
         """
+        self._cancel_transition()
         # Save previous state for rollback on failure
         prev_state = self._api.state
 
@@ -253,6 +256,7 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
         Raises:
             HomeAssistantError: If command execution fails.
         """
+        self._cancel_transition()
         # Save previous state for rollback on failure
         prev_brightness = self._api.brightness
 
@@ -279,6 +283,7 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
         Raises:
             HomeAssistantError: If command execution fails.
         """
+        self._cancel_transition()
         # Save previous state for rollback on failure
         prev_color_rgb = self._api.color_rgb
         prev_color_temp = self._api.color_temp
@@ -306,6 +311,7 @@ class GoveeCoordinator(DataUpdateCoordinator[GoveeData]):  # type: ignore[misc]
         Raises:
             HomeAssistantError: If command execution fails.
         """
+        self._cancel_transition()
         # Save previous state for rollback on failure
         prev_color_rgb = self._api.color_rgb
         prev_color_temp = self._api.color_temp

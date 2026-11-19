@@ -97,7 +97,7 @@ custom_components/govee_h6006/
 ├── api.py              # GoveeAPI — BLE connection, writes commands via protocol, device info queries
 ├── coordinator.py      # GoveeCoordinator (DataUpdateCoordinator) — polls every 30s, proxies commands
 ├── config_flow.py      # Multi-model Bluetooth discovery + manual setup flow
-├── light.py            # GoveeLight (LightEntity) — RGB + color temp modes
+├── light.py            # GoveeLight (LightEntity) — RGB + color temp modes (RGB only when model lacks color_temp capability)
 ├── const.py            # MODEL_REGISTRY, UUIDs (GATT + BLE DIS), domain, kelvin range
 ├── sensor.py           # Diagnostic sensors (connection state, RSSI, firmware version)
 └── translations/       # UI strings
@@ -105,7 +105,7 @@ custom_components/govee_h6006/
 
 **Multi-model protocol architecture:** The integration uses a pluggable protocol system to support multiple Govee models (H6006, H6008, H6009, H6003). Each protocol class implements the `GoveeProtocol` interface with static methods for command packet building (power, brightness, RGB, color temp). Protocol selection happens automatically based on the `model_type` config entry field. All protocols build 20-byte packets with command frames (head `0x33`) and XOR checksum validation.
 
-**Smooth transitions:** Software-based linear interpolation for brightness, RGB, and color temperature. Enabled via the `transition` parameter in `light.turn_on`. Managed by `Coordinator` tasks with 0.1s update intervals.
+**Smooth transitions:** Software-based linear interpolation for brightness, RGB, and color temperature. Enabled via the `transition` parameter in `light.turn_on`. Managed by `Coordinator` tasks with 0.1s update intervals. Any instant command cancels a running transition.
 
 **Non-blocking device info:** Firmware, hardware, and model are queried asynchronously after setup. Initial setup uses a 2-attempt fast-fail limit to avoid blocking Home Assistant startup.
 
@@ -146,9 +146,9 @@ The `query_device_info()` method in `api.py` reads these characteristics during 
 ## Bluetooth Resilience
 
 To handle noisy RF environments (e.g., 2.4GHz interference from WiFi, cordless phones, microwaves):
-- **Connection timeout:** 20 seconds (api.py line 196) — allows retry mechanism more time to establish connection
+- **Connection timeout:** 20 seconds per attempt, enforced with `asyncio.wait_for` in `GoveeAPI._retry_connection` (bleak-retry-connector ignores a timeout kwarg). `establish_connection` is called with `max_attempts=1`; our loop owns retries and backoff.
 - **Polling interval:** 30 seconds (coordinator.py line 42) — reduces polling frequency to be less aggressive in noisy environments
-- **Connection lock:** asyncio.Lock prevents concurrent connection attempts, avoiding "Operation already in progress" BlueZ errors (api.py line 54)
+- **Connection lock:** asyncio.Lock prevents concurrent connection attempts, avoiding "Operation already in progress" BlueZ errors. Held per attempt only, never during backoff sleeps.
 
 These settings help stabilize Bluetooth in interference-prone home networks. If further issues persist, consider placing the BLE adapter away from USB 3 sources.
 
@@ -157,7 +157,7 @@ These settings help stabilize Bluetooth in interference-prone home networks. If 
 Commands sent from Home Assistant provide **instant UI feedback** via optimistic updates (coordinator.py lines 72–82). When you adjust brightness, color, or power state:
 1. Local state updates immediately → UI reflects change instantly
 2. Command is sent to device asynchronously
-3. Notification updates are **suppressed for 500ms** to prevent stale state from overwriting optimistic updates (api.py line 45)
+3. Notification updates are **suppressed for 500ms** to prevent stale state from overwriting optimistic updates (`_suppress_update_until` in api.py). Notifications outside that window are never throttled, so all poll replies reach HA.
 4. Device processes command and sends confirmation via notification or polling (fallback after 30s)
 
 This architecture prevents the device from echoing back old state before processing the command, which was causing the "restore to last settings" issue. All commands and notifications are logged at debug level for troubleshooting.
@@ -168,7 +168,7 @@ Before working on a task, check that this documentation matches the current code
 - Verify test commands still work: `pytest -x -q`
 - Check that module paths haven't changed
 - Confirm the coordinator still uses 30s polling (see coordinator.py line 42)
-- Verify connection timeout is 20s in api.py (line 196)
+- Verify connection timeout is 20s (`DEFAULT_CONNECTION_TIMEOUT` in const.py)
 - Review recent commits to catch breaking changes not yet documented here
 
 If you notice discrepancies, update this CLAUDE.md to reflect the current state.

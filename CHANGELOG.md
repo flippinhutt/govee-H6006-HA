@@ -2,6 +2,19 @@
 
 All notable changes to the Govee H6006 Home Assistant integration are documented here.
 
+## [Unreleased]
+
+### Fixed
+- **Options Flow** — Stopped setting `config_entry` by hand in the options flow. Current HA sets it and rejects manual assignment.
+- **Color Temperature** — Light now reports `color_temp_kelvin` instead of overriding `color_temp`, which HA reads as mireds.
+- **Manual Setup** — The user flow now sets the device address as `unique_id` and aborts duplicates. Before, manual entries had no unique ID.
+- **BLE Disconnect** — Coordinator shutdown now cancels any running transition and closes the BLE connection (`GoveeAPI.disconnect()`), so reloads don't leave a stale connection.
+- **H6003** — RGB-only models now advertise only `ColorMode.RGB`, so no color temp slider is shown.
+- **Poll Replies** — Removed the notification callback throttle. Power, brightness and color replies arrive back to back; only the first reached HA before.
+- **Retry Count** — `establish_connection` now makes one attempt per loop (`max_attempts=1`), so a failed connect tries `max_retries` times, not `max_retries²`. Dropped the bogus `ble_device_callback_timeout` kwarg; each attempt is now bounded by `connection_timeout` via `asyncio.wait_for`.
+- **Lock During Backoff** — The connection lock is held only per attempt, not during backoff sleeps, so commands and unload are no longer blocked while reconnecting.
+- **Transitions** — Instant power, brightness, RGB and color temp commands now cancel a running transition instead of being overwritten by it.
+
 ## [1.0.0] - 2026-03-17
 
 ### Added

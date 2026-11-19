@@ -27,9 +27,10 @@ def make_coordinator(state=True, brightness=255, color_rgb=None, color_temp=None
     return coordinator
 
 
-def make_light(coordinator):
+def make_light(coordinator, model="H6006"):
     config_entry = MagicMock()
     config_entry.unique_id = "AA:BB:CC:DD:EE:FF"
+    config_entry.data = {"address": "AA:BB:CC:DD:EE:FF", "name": "ihoment_H6006", "model": model}
     light = GoveeH6006Light(coordinator, config_entry)
     return light
 
@@ -154,3 +155,20 @@ async def test_turn_on_color_temp_no_transition_uses_instant():
     await light.async_turn_on(color_temp_kelvin=5000)
     coordinator.set_color_temp.assert_called_once_with(5000)
     coordinator.set_color_temp_with_transition.assert_not_called()
+
+
+def test_color_temp_exposed_as_kelvin():
+    light = make_light(make_coordinator(color_rgb=None, color_temp=3000))
+    assert light.color_temp_kelvin == 3000
+    # `color_temp` is mireds in HA; must not be overridden with kelvin
+    assert "color_temp" not in type(light).__dict__
+
+
+def test_h6003_supports_rgb_only():
+    light = make_light(make_coordinator(), model="H6003")
+    assert light.supported_color_modes == {ColorMode.RGB}
+
+
+def test_missing_model_defaults_to_color_temp_support():
+    light = make_light(make_coordinator(), model=None)
+    assert ColorMode.COLOR_TEMP in light.supported_color_modes

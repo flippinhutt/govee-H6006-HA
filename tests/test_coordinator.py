@@ -794,3 +794,57 @@ async def test_firmware_version_logged_at_info_level(
         # Verify INFO log contains firmware version
         assert "1.02.03" in caplog.text
         assert "Firmware" in caplog.text or "firmware" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_shutdown_disconnects_ble(mock_hass, config_entry, mock_ble_device):
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI:
+        api_instance = AsyncMock()
+        api_instance.connection_state = "connected"
+        api_instance.total_reconnections = 0
+        api_instance.last_poll_time = None
+        MockAPI.return_value = api_instance
+
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+        await coordinator.async_shutdown()
+
+        api_instance.disconnect.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method,args",
+    [
+        ("set_power", (False,)),
+        ("set_brightness", (50,)),
+        ("set_color_rgb", (1, 2, 3)),
+        ("set_color_temp", (4000,)),
+    ],
+)
+async def test_instant_command_cancels_running_transition(
+    mock_hass, config_entry, mock_ble_device, method, args
+):
+    """An instant command must stop a running transition from overwriting it."""
+    import asyncio
+
+    with patch(
+        "custom_components.govee_h6006.coordinator.bluetooth.async_ble_device_from_address",
+        return_value=mock_ble_device,
+    ), patch("custom_components.govee_h6006.coordinator.GoveeAPI") as MockAPI:
+        api_instance = AsyncMock()
+        api_instance.brightness = 100
+        MockAPI.return_value = api_instance
+
+        coordinator = GoveeCoordinator(mock_hass, config_entry)
+        outer = asyncio.create_task(coordinator.set_brightness_with_transition(200, 1.0))
+        await asyncio.sleep(0.01)
+        transition_task = coordinator._transition_task
+
+        await getattr(coordinator, method)(*args)
+        await asyncio.sleep(0)
+
+        assert transition_task.cancelled()
+        await outer

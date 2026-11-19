@@ -23,6 +23,15 @@ def make_config_entry(data, options=None, entry_id="test"):
     return entry
 
 
+def make_options_flow(entry):
+    """Create an options flow the way HA does: no args, entry attached by HA."""
+    from custom_components.govee_h6006.config_flow import GoveeH6006OptionsFlowHandler
+
+    flow = GoveeH6006OptionsFlowHandler()
+    flow._config_entry = entry
+    return flow
+
+
 def make_service_info(name="ihoment_H6006", address="AA:BB:CC:DD:EE:FF"):
     info = MagicMock(spec=BluetoothServiceInfoBleak)
     info.name = name
@@ -105,14 +114,12 @@ async def test_user_step_aborts_when_no_devices(hass):
 @pytest.mark.asyncio
 async def test_options_flow_shows_form():
     """Test that the options flow shows the configuration form."""
-    from custom_components.govee_h6006.config_flow import GoveeH6006OptionsFlowHandler
-
     entry = make_config_entry(
         data={"address": "AA:BB:CC:DD:EE:FF", "name": "ihoment_H6006"},
         options={},
     )
 
-    flow = GoveeH6006OptionsFlowHandler(entry)
+    flow = make_options_flow(entry)
 
     result = await flow.async_step_init()
 
@@ -123,14 +130,12 @@ async def test_options_flow_shows_form():
 @pytest.mark.asyncio
 async def test_options_flow_updates_entry():
     """Test that the options flow updates the config entry with new options."""
-    from custom_components.govee_h6006.config_flow import GoveeH6006OptionsFlowHandler
-
     entry = make_config_entry(
         data={"address": "AA:BB:CC:DD:EE:FF", "name": "ihoment_H6006"},
         options={},
     )
 
-    flow = GoveeH6006OptionsFlowHandler(entry)
+    flow = make_options_flow(entry)
 
     result = await flow.async_step_init(
         user_input={
@@ -151,15 +156,13 @@ async def test_options_flow_updates_entry():
 @pytest.mark.asyncio
 async def test_options_flow_validates_ranges():
     """Test that the options flow accepts valid values within the specified ranges."""
-    from custom_components.govee_h6006.config_flow import GoveeH6006OptionsFlowHandler
-
     entry = make_config_entry(
         data={"address": "AA:BB:CC:DD:EE:FF", "name": "ihoment_H6006"},
         options={},
     )
 
     # Test minimum valid values
-    flow = GoveeH6006OptionsFlowHandler(entry)
+    flow = make_options_flow(entry)
     result = await flow.async_step_init(
         user_input={
             "polling_interval": 10,
@@ -172,7 +175,7 @@ async def test_options_flow_validates_ranges():
     assert result["type"] == FlowResultType.CREATE_ENTRY
 
     # Test maximum valid values
-    flow2 = GoveeH6006OptionsFlowHandler(entry)
+    flow2 = make_options_flow(entry)
     result2 = await flow2.async_step_init(
         user_input={
             "polling_interval": 120,
@@ -188,15 +191,13 @@ async def test_options_flow_validates_ranges():
 @pytest.mark.asyncio
 async def test_options_flow_rejects_invalid_values():
     """Test that the options flow rejects out-of-range values."""
-    from custom_components.govee_h6006.config_flow import GoveeH6006OptionsFlowHandler
-
     entry = make_config_entry(
         data={"address": "AA:BB:CC:DD:EE:FF", "name": "ihoment_H6006"},
         options={},
     )
 
     # Test value below minimum range
-    flow = GoveeH6006OptionsFlowHandler(entry)
+    flow = make_options_flow(entry)
 
     try:
         await flow.async_step_init(
@@ -212,7 +213,7 @@ async def test_options_flow_rejects_invalid_values():
         pass  # Expected to raise validation error
 
     # Test value above maximum range
-    flow2 = GoveeH6006OptionsFlowHandler(entry)
+    flow2 = make_options_flow(entry)
 
     try:
         await flow2.async_step_init(
@@ -310,3 +311,24 @@ async def test_bluetooth_confirm_aborts_when_no_discovery_info(hass):
 
     assert result["type"] == FlowResultType.ABORT
     assert result["reason"] == "no_devices_found"
+
+
+@pytest.mark.asyncio
+async def test_user_flow_sets_unique_id(hass):
+    """Manual setup must set unique_id so entities get stable IDs."""
+    from unittest.mock import AsyncMock
+
+    from custom_components.govee_h6006.config_flow import GoveeH6006ConfigFlow
+
+    service_info = make_service_info(address="AA:BB:CC:DD:EE:FF")
+    flow = GoveeH6006ConfigFlow()
+    flow.hass = hass
+    flow._async_current_ids = lambda: set()
+    flow.async_set_unique_id = AsyncMock()
+    flow._abort_if_unique_id_configured = MagicMock()
+    flow._discovered_devices = {service_info.address: service_info}
+
+    await flow.async_step_user({"address": "AA:BB:CC:DD:EE:FF"})
+
+    flow.async_set_unique_id.assert_called_once_with("AA:BB:CC:DD:EE:FF")
+    flow._abort_if_unique_id_configured.assert_called_once()

@@ -9,7 +9,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MAX_KELVIN, MIN_KELVIN
+from .const import DOMAIN, MAX_KELVIN, MIN_KELVIN, MODEL_REGISTRY
 from .coordinator import GoveeCoordinator
 
 
@@ -48,6 +48,11 @@ class GoveeH6006Light(CoordinatorEntity[GoveeCoordinator], LightEntity):  # type
         super().__init__(coordinator)
         self._attr_unique_id = config_entry.unique_id
         self._attr_name = coordinator.device_name
+        model = MODEL_REGISTRY.get(
+            config_entry.data.get("model") or "H6006", MODEL_REGISTRY["H6006"]
+        )
+        if not model["capabilities"]["color_temp"]:  # type: ignore[index]
+            self._attr_supported_color_modes = {ColorMode.RGB}
 
     @property
     def is_on(self) -> bool | None:
@@ -65,8 +70,8 @@ class GoveeH6006Light(CoordinatorEntity[GoveeCoordinator], LightEntity):  # type
         return self.coordinator.data.color_rgb  # type: ignore[no-any-return]
 
     @property
-    def color_temp(self) -> int | None:
-        """Return the color_temp of the light."""
+    def color_temp_kelvin(self) -> int | None:
+        """Return the color temperature in Kelvin."""
         return self.coordinator.data.color_temp  # type: ignore[no-any-return]
 
     @property

@@ -8,7 +8,7 @@ from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
     async_discovered_service_info,
 )
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
+from homeassistant.config_entries import ConfigFlow, OptionsFlow
 from homeassistant.core import callback
 
 from .const import (
@@ -58,13 +58,7 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry):
         """Return the options flow handler."""
-        return GoveeH6006OptionsFlowHandler(config_entry)
-
-    @staticmethod
-    @callback
-    def options_flow(config_entry):
-        """Return the options flow handler (alias for async_get_options_flow)."""
-        return GoveeH6006OptionsFlowHandler(config_entry)
+        return GoveeH6006OptionsFlowHandler()
 
     async def async_step_bluetooth(
         self, discovery_info: BluetoothServiceInfoBleak
@@ -115,6 +109,8 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
         """
         if user_input is not None:
             address = user_input["address"]
+            await self.async_set_unique_id(address)
+            self._abort_if_unique_id_configured()
             self._discovery_info = self._discovered_devices[address]
             # Show confirmation form before creating the entry
             return await self.async_step_bluetooth_confirm()
@@ -145,10 +141,6 @@ class GoveeH6006ConfigFlow(ConfigFlow, domain=DOMAIN):
 
 class GoveeH6006OptionsFlowHandler(OptionsFlow):  # type: ignore[misc]
     """Handle options flow for Govee H6006."""
-
-    def __init__(self, config_entry: ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None

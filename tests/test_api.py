@@ -118,8 +118,8 @@ async def test_api_passes_timeout_to_establish_connection(
         mock_connect.assert_called_once()
         # Verify timeout and max_attempts are passed to establish_connection
         call_kwargs = mock_connect.call_args[1]
-        assert call_kwargs["max_attempts"] == 3
-        assert call_kwargs["ble_device_callback_timeout"] == 20.0
+        assert call_kwargs["max_attempts"] == 1
+        assert "ble_device_callback_timeout" not in call_kwargs
 
 
 @pytest.mark.asyncio
@@ -133,8 +133,8 @@ async def test_api_uses_default_timeout_and_retries(
         mock_connect.assert_called_once()
         # Verify default timeout and max_attempts are used
         call_kwargs = mock_connect.call_args[1]
-        assert call_kwargs["max_attempts"] == 5
-        assert call_kwargs["ble_device_callback_timeout"] == 20.0
+        assert call_kwargs["max_attempts"] == 1
+        assert "ble_device_callback_timeout" not in call_kwargs
 
 
 @pytest.mark.asyncio
@@ -159,61 +159,67 @@ async def test_reconnect_resets_state_on_success(api, mock_bleak_client):
 
 
 @pytest.mark.asyncio
-async def test_connection_timeout_is_20_seconds(api, mock_bleak_client):
-    """Test that establish_connection is called with the configured timeout."""
+async def test_connection_attempt_uses_configured_timeout(api, mock_bleak_client):
+    """Each connect attempt is bounded by the configured timeout."""
     with patch("custom_components.govee_h6006.api.establish_connection",
-               return_value=mock_bleak_client) as mock_connect:
+               return_value=mock_bleak_client), \
+         patch("custom_components.govee_h6006.api.asyncio.wait_for",
+               wraps=__import__("asyncio").wait_for) as mock_wait_for:
         await api.set_power(True)
-
-        # Verify establish_connection was called with the default timeout (20.0)
-        call_args = mock_connect.call_args
-        assert 'ble_device_callback_timeout' in call_args.kwargs
-        assert call_args.kwargs['ble_device_callback_timeout'] == 20.0
+        assert mock_wait_for.call_args.kwargs["timeout"] == 20.0
 
 
 @pytest.mark.asyncio
-async def test_api_suppresses_rapid_notifications(mock_ble_device):
-    """Test that rapid notifications are throttled based on suppression_window."""
-    import time
+async def test_failed_connect_uses_exactly_max_attempts(mock_ble_device, update_callback):
+    """Retries are counted once, not max_attempts squared."""
+    api = GoveeAPI(mock_ble_device, update_callback, max_attempts=3, model_type="H6006")
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               side_effect=Exception("boom")) as mock_connect, \
+         patch("custom_components.govee_h6006.api.asyncio.sleep", new=AsyncMock()):
+        with pytest.raises(ConnectionError):
+            await api.set_power(True)
+    assert mock_connect.call_count == 3
 
+
+@pytest.mark.asyncio
+async def test_lock_released_during_backoff(mock_ble_device, update_callback):
+    """Backoff sleeps must not hold the lock, so disconnect/commands are not blocked."""
+    api = GoveeAPI(mock_ble_device, update_callback, max_attempts=3, model_type="H6006")
+    locked_during_sleep = []
+
+    async def fake_sleep(_delay):
+        locked_during_sleep.append(api._lock.locked())
+
+    with patch("custom_components.govee_h6006.api.establish_connection",
+               side_effect=Exception("boom")), \
+         patch("custom_components.govee_h6006.api.asyncio.sleep", new=fake_sleep):
+        with pytest.raises(ConnectionError):
+            await api.set_power(True)
+    assert locked_during_sleep == [False, False]
+
+
+@pytest.mark.asyncio
+async def test_api_pushes_every_notification(mock_ble_device):
+    """Poll replies arrive back to back; each one must reach the coordinator."""
     callback_count = 0
 
     async def counting_callback():
         nonlocal callback_count
         callback_count += 1
 
-    # Create API with 500ms suppression window
     api = GoveeAPI(mock_ble_device, counting_callback, suppression_window=500, model_type="H6006")
 
-    # Simulate 3 rapid power notifications within 100ms
-    for i in range(3):
-        # Simulate notification (power on)
-        notification_frame = bytearray([0xAA, 0x01, 0x01] + [0] * 16)
+    for cmd, value in ((0x01, 0x01), (0x04, 0x80)):
+        frame = bytearray([0xAA, cmd, value] + [0] * 16)
         checksum = 0
-        for b in notification_frame[:19]:
+        for b in frame[:19]:
             checksum ^= b
-        notification_frame.append(checksum & 0xFF)
+        frame.append(checksum & 0xFF)
+        await api._handle_notification(None, frame)
 
-        await api._handle_notification(None, notification_frame)
-        if i < 2:
-            time.sleep(0.05)  # 50ms between notifications
-
-    # Only the first notification should have triggered callback (others suppressed)
-    assert callback_count == 1
-
-    # Wait for suppression window to expire
-    time.sleep(0.6)  # 600ms
-
-    # Send another notification
-    notification_frame = bytearray([0xAA, 0x01, 0x01] + [0] * 16)
-    checksum = 0
-    for b in notification_frame[:19]:
-        checksum ^= b
-    notification_frame.append(checksum & 0xFF)
-    await api._handle_notification(None, notification_frame)
-
-    # Now callback should be called again
     assert callback_count == 2
+    assert api.state is True
+    assert api.brightness == 0x80
 
 
 # ========================================
@@ -1034,3 +1040,18 @@ async def test_connect_succeeds_when_ble_device_has_no_rssi_attribute(
 
     assert mock_bleak_client.write_gatt_char.called
     assert api.rssi is None
+
+
+@pytest.mark.asyncio
+async def test_disconnect_closes_client(api, mock_bleak_client):
+    api._client = mock_bleak_client
+    await api.disconnect()
+    mock_bleak_client.disconnect.assert_awaited_once()
+    assert api._client is None
+
+
+@pytest.mark.asyncio
+async def test_disconnect_without_client_is_noop(api):
+    api._client = None
+    await api.disconnect()
+    assert api._client is None
