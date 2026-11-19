@@ -2,7 +2,7 @@
 
 All notable changes to the Govee H6006 Home Assistant integration are documented here.
 
-## [Unreleased]
+## [1.1.0] - 2026-11-19
 
 ### Fixed
 - **Options Flow** — Stopped setting `config_entry` by hand in the options flow. Current HA sets it and rejects manual assignment.
