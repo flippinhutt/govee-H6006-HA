@@ -222,6 +222,43 @@ async def test_api_pushes_every_notification(mock_ble_device):
     assert api.brightness == 0x80
 
 
+def _reply(hex_bytes: str) -> bytearray:
+    body = list(bytes.fromhex(hex_bytes))
+    body += [0] * (19 - len(body))
+    checksum = 0
+    for b in body:
+        checksum ^= b
+    return bytearray(body + [checksum])
+
+
+@pytest.mark.asyncio
+async def test_h6008_notifications_use_model_parsing(mock_ble_device, update_callback):
+    """H6008 replies: brightness is a percentage, color mode 0x0d carries Kelvin."""
+    api = GoveeAPI(mock_ble_device, update_callback, model_type="H6008")
+
+    await api._handle_notification(None, _reply("aa 04 14"))
+    assert api.brightness == 51
+
+    await api._handle_notification(None, _reply("aa 05 0d ff c9 87 0d ac"))
+    assert api.color_temp == 3500
+    assert api.color_rgb is None
+
+    await api._handle_notification(None, _reply("aa 05 0d 00 ff 00"))
+    assert api.color_rgb == (0, 255, 0)
+    assert api.color_temp is None
+
+
+@pytest.mark.asyncio
+async def test_unparsed_color_mode_keeps_state(mock_ble_device, update_callback):
+    api = GoveeAPI(mock_ble_device, update_callback, model_type="H6008")
+    api.color_rgb = (1, 2, 3)
+
+    await api._handle_notification(None, _reply("aa 05 04 01"))
+
+    assert api.color_rgb == (1, 2, 3)
+    assert api.color_temp is None
+
+
 # ========================================
 # BLE Write Failures and Disconnection
 # ========================================

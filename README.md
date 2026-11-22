@@ -45,7 +45,7 @@ This integration supports the following Govee BLE bulb models:
 
 **Notes:**
 - All models are auto-discovered via Bluetooth using their respective discovery prefixes
-- H6006 protocol is hardware-verified; H6008, H6009, and H6003 are based on protocol research and expected to be compatible
+- H6006 and H6008 protocols are hardware-verified; H6009 and H6003 are based on protocol research and expected to be compatible
 - All RGBWW models (H6006, H6008, H6009) support the full color temperature range of 2700K-6500K
 - H6003 is RGB-only and does not support color temperature control
 

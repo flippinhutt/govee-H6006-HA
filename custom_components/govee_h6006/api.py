@@ -14,9 +14,7 @@ from bleak_retry_connector import establish_connection
 from .const import (
     FIRMWARE_REVISION_UUID,
     HARDWARE_REVISION_UUID,
-    MAX_KELVIN,
     MAX_RECONNECT_ATTEMPTS,
-    MIN_KELVIN,
     MODEL_NUMBER_UUID,
     READ_CHARACTERISTIC_UUID,
     RECONNECT_BACKOFF_BASE,
@@ -396,20 +394,17 @@ class GoveeAPI:
                 self.state = frame[2] == 0x01
                 _LOGGER.debug(f"Notification: power={self.state}")
             elif cmd == _BRIGHTNESS_CMD:
-                self.brightness = frame[2]
+                self.brightness = self._protocol.parse_brightness(frame[2])
                 _LOGGER.debug(f"Notification: brightness={self.brightness}")
             elif cmd == _COLOR_CMD:
-                # Detect white mode by checking if R, G, B are all 0xFF
-                is_white_mode = frame[3] == 0xFF and frame[4] == 0xFF and frame[5] == 0xFF
-                if is_white_mode:
-                    warm = frame[7]
-                    self.color_temp = round(MAX_KELVIN - (warm / 255) * (MAX_KELVIN - MIN_KELVIN))
-                    self.color_rgb = None  # clear stale RGB
-                    _LOGGER.debug(f"Notification: color_temp={self.color_temp}K (white mode)")
+                color = self._protocol.parse_color(bytes(frame))
+                if color is None:
+                    _LOGGER.debug(f"Notification: unparsed color mode {frame[2]:#04x}")
                 else:
-                    self.color_rgb = (frame[3], frame[4], frame[5])
-                    self.color_temp = None  # clear stale color temp
-                    _LOGGER.debug(f"Notification: color_rgb={self.color_rgb}")
+                    self.color_rgb, self.color_temp = color
+                    _LOGGER.debug(
+                        f"Notification: color_rgb={self.color_rgb}, color_temp={self.color_temp}"
+                    )
 
             await self._update_callback()
         except Exception as err:

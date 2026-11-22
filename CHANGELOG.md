@@ -2,6 +2,16 @@
 
 All notable changes to the Govee H6006 Home Assistant integration are documented here.
 
+## [Unreleased]
+
+### Fixed
+- **H6008** — Verified on hardware (hardware version 1.02.01, advertising as `ihoment_H6008_XXXX`). The bulb rejected the H6006 color frames (`33 05 02 …`, status `0x01`), so RGB and color temperature did nothing. RGB now uses `33 05 0d R G B`, and color temperature uses `33 05 0d <tint> <Kelvin, big-endian> <tint>`, rounded to 100 K like the Govee app.
+- **H6008 Brightness** — The bulb takes and reports brightness as a percentage. HA's 0-255 is now sent as 1-100 and read back on the 0-255 scale.
+- **H6008 State** — Color replies (`aa 05 0d R G B K_hi K_lo`) are now parsed per model: a non-zero Kelvin means color temperature mode. Before, white mode showed up in HA as an RGB color. Replies in other modes (e.g. scenes) leave the color state unchanged.
+
+### Changed
+- **Reply Parsing** — Protocol classes now parse brightness and color replies (`parse_brightness`, `parse_color`). The base class keeps the H6006 behavior, so other models are unchanged.
+
 ## [1.1.0] - 2026-11-19
 
 ### Fixed

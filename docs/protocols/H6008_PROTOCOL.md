@@ -4,7 +4,7 @@
 
 The Govee H6008 is a WiFi+Bluetooth RGBWW LED smart bulb. This document captures research on its BLE protocol structure based on similar Govee models and identifies areas requiring hardware testing for verification.
 
-**Status:** Research in progress - protocol details need hardware verification
+**Status:** Power, brightness, RGB, color temperature and state replies verified on hardware (hardware version 1.02.01, 2026-11-22). Music, scene and DIY modes are still unverified.
 **Model:** H6008 (WiFi+Bluetooth RGBWW LED Bulb)
 **Related Models:** H6006 (confirmed working), H6001, H6009, H6003
 
@@ -95,86 +95,62 @@ Based on H6006 and similar models, the following commands are expected to work w
 33 04 [BRIGHTNESS] 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 [XOR]
 ```
 
-**Byte 2:** Brightness value
-- Range: `0x00` - `0xFF` (0-255)
-- Some models use `0x14` (20) as minimum (1%)
-- `0xFE` (254) typically represents 100%
+**Byte 2:** Brightness as a percentage, 1-100 (`0x01`-`0x64`).
+The bulb also stores values above 100 and reports them back unchanged, but the Govee app
+sends 0-100, so the integration converts HA's 0-255 to 1-100.
 
-**Example (50% brightness = 127):**
+**Example (20%):**
 ```
-33 04 7F 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 48
+33 04 14 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 23
 ```
 
-**Status:** ⚠️ Needs hardware verification
+**Status:** ✅ Verified on hardware
 
 ### RGB Color Control
 
 **Command:** `0x05`
-**Sub-command:** `0x02` (manual color mode)
+**Sub-command:** `0x0D`
 
 **Format:**
 ```
-33 05 02 [R] [G] [B] 00 00 00 00 00 00 00 00 00 00 00 00 00 [XOR]
+33 05 0D [R] [G] [B] 00 00 00 00 00 00 00 00 00 00 00 00 00 [XOR]
 ```
 
-**Bytes:**
-- Byte 2: `0x02` (manual color operation mode)
-- Byte 3: Red (0-255)
-- Byte 4: Green (0-255)
-- Byte 5: Blue (0-255)
-
-**Example (Red = 255, 0, 0):**
+**Example (Green = 0, 255, 0):**
 ```
-33 05 02 FF 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 CD
+33 05 0D 00 FF 00 00 00 00 00 00 00 00 00 00 00 00 00 00 C4
 ```
 
-**Alternative RGB Format (some models):**
+The H6006's `33 05 02 [R] [G] [B]` is rejected: the bulb answers `33 05 01 …` (status 1)
+and the color doesn't change.
 
-Some Govee models use bytes 8-9 for LED segment selection:
-```
-33 05 0B [R] [G] [B] 00 00 FF 7F 00 00 00 00 00 00 00 00 00 [XOR]
-```
-- Bytes 8-9: `0xFF 0x7F` (all LED segments)
-
-**Status:** ⚠️ Needs hardware verification - determine which format H6008 uses
+**Status:** ✅ Verified on hardware
 
 ### Color Temperature Control
 
 **Command:** `0x05`
-**Sub-command:** `0x02` (manual color mode)
+**Sub-command:** `0x0D`
 
 **Format:**
 ```
-33 05 02 FF FF FF 01 [WARM] [COLD] 00 00 00 00 00 00 00 00 00 00 [XOR]
+33 05 0D [TR] [TG] [TB] [K_HI] [K_LO] [TR] [TG] [TB] 00 00 00 00 00 00 00 00 [XOR]
 ```
 
 **Bytes:**
-- Byte 2: `0x02` (manual color operation mode)
-- Bytes 3-5: `0xFF 0xFF 0xFF` (marks color temp mode)
-- Byte 6: `0x01` (color temp flag)
-- Byte 7: Warm component (0-255)
-- Byte 8: Cold component (0-255)
+- Bytes 3-5 and 8-10: tint, the RGB of a black body at that temperature, as the Govee app sends it
+- Bytes 6-7: Kelvin, big-endian (2700 = `0A 8C`, 6500 = `19 64`)
 
-**Temperature Calculation:**
-```python
-MIN_KELVIN = 2700
-MAX_KELVIN = 6500
-kelvin = max(MIN_KELVIN, min(MAX_KELVIN, kelvin))
-warm = round((MAX_KELVIN - kelvin) / (MAX_KELVIN - MIN_KELVIN) * 255)
-cold = 255 - warm
+The integration rounds Kelvin to 100 K steps and clamps it to 2700-6500 K. The tint comes
+from Tanner Helland's black-body fit.
+
+**Example (2700 K):**
+```
+33 05 0D FF A7 57 0A 8C FF A7 57 00 00 00 00 00 00 00 00 BD
 ```
 
-**Example (4600K = warm:127, cold:128):**
-```
-33 05 02 FF FF FF 01 7F 80 00 00 00 00 00 00 00 00 00 00 19
-```
+The H6006's `33 05 02 FF FF FF 01 [WARM] [COLD]` is rejected with status 1.
 
-**Warm/Cold Relationship:**
-- `warm + cold = 255` (complementary)
-- Higher warm value = warmer/yellower light (2700K)
-- Higher cold value = cooler/bluer light (6500K)
-
-**Status:** ⚠️ Needs hardware verification - confirm kelvin range for H6008
+**Status:** ✅ Verified on hardware (2700 K, 3500 K, 4000 K, 6500 K)
 
 ## Additional Commands
 
@@ -224,7 +200,21 @@ Devices send status updates via notifications on the Read characteristic with he
 AA [CMD] [STATE DATA...] [XOR]
 ```
 
-**Status:** ⚠️ Needs hardware verification - determine query command and response format
+**Verified replies on the H6008:**
+
+| Query | Reply | Meaning |
+|-------|-------|---------|
+| `AA 01` | `AA 01 01` | Power on (`00` = off) |
+| `AA 04` | `AA 04 64` | Brightness in percent (100) |
+| `AA 05` | `AA 05 0D 00 FF 00 00 00` | RGB mode, green (Kelvin bytes zero) |
+| `AA 05` | `AA 05 0D FF C9 87 0D AC` | Color temp mode, 3500 K, tint `FF C9 87` |
+
+Commands are acknowledged with `33 [CMD] [STATUS]`: `00` = accepted, `01` = rejected.
+
+The bulb has no Device Information Service: model, firmware and hardware revision
+characteristics are not present.
+
+**Status:** ✅ Verified on hardware
 
 ## Color Capabilities
 
@@ -372,17 +362,18 @@ This protocol documentation is based on reverse engineering work from:
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Advertising Name | ⚠️ Needs Verification | Expected: `ihoment_H6008_XXXX` |
-| GATT UUIDs | ⚠️ Needs Verification | Expected: Same as H6006 |
-| Power Command | ⚠️ Needs Verification | Format likely identical to H6006 |
-| Brightness Command | ⚠️ Needs Verification | Range may vary |
-| RGB Color Command | ⚠️ Needs Verification | Need to determine format variant |
-| Color Temp Command | ⚠️ Needs Verification | Need to confirm kelvin range |
-| Status Query | ❓ Unknown | Need to discover query method |
+| Advertising Name | ✅ Verified | `ihoment_H6008_XXXX`, manufacturer data unencrypted (header `0x02`) |
+| GATT UUIDs | ✅ Verified | Same as H6006 |
+| Power Command | ✅ Verified | Same as H6006 |
+| Brightness Command | ✅ Verified | Percent, 1-100 |
+| RGB Color Command | ✅ Verified | `33 05 0D R G B` |
+| Color Temp Command | ✅ Verified | `33 05 0D tint K_hi K_lo tint`, 2700-6500 K |
+| Status Query | ✅ Verified | `AA 01`, `AA 04`, `AA 05` |
+| Device Info (DIS) | ❌ Not present | |
 | Music Mode | ❓ Unknown | Feature support uncertain |
 | Scene Mode | ❓ Unknown | Feature support uncertain |
 
 ---
 
-**Last Updated:** 2026-03-16
-**Research Status:** Initial research complete, hardware verification required
+**Last Updated:** 2026-11-22
+**Research Status:** Core commands verified on hardware version 1.02.01. Newer H6008 firmware may encrypt BLE traffic (encryption bit `0x40` in the advertisement header); that is not supported.
