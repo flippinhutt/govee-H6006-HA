@@ -8,7 +8,7 @@ HACS custom integration for Govee H60xx series light bulbs (H6006, H6008, H6009,
 
 **Supported Models:**
 - **H6006** (RGBWW, 800 lm, 9W) — Hardware-verified baseline
-- **H6008** (RGBWW, 800 lm, 9W) — Protocol research verified
+- **H6008** (RGBWW, 800 lm, 9W) — Hardware-verified (hardware 1.02.01); own color frames and percent brightness, see Protocol Reference
 - **H6009** (RGBWW, 1200 lm, 12W) — Protocol research verified, music sync + scenes
 - **H6003** (RGB, 800 lm, 9W) — Protocol research verified, RGB-only (no color temp)
 
@@ -129,6 +129,18 @@ custom_components/govee_h6006/
 | Color temp | 0x33 | 0x05 | 0x02, 0xFF, 0xFF, 0xFF, 0x01, warm, cold |
 
 Color temp range: 2700K–6500K. Warm/cold bytes are complementary (sum to 255).
+
+**H6008** (hardware-verified) differs; it rejects the `0x02` color frames above with status `0x01`:
+
+| Command | Head | Cmd | Payload |
+|---------|------|-----|---------|
+| Brightness | 0x33 | 0x04 | 1-100 (percent) |
+| RGB color | 0x33 | 0x05 | 0x0D, R, G, B |
+| Color temp | 0x33 | 0x05 | 0x0D, tint R G B, Kelvin (2 bytes, big-endian), tint R G B |
+
+Replies: brightness `aa 04 <percent>`; color `aa 05 0d R G B K_hi K_lo`, where a non-zero Kelvin means color temp mode and R G B is then the tint. The bulb acknowledges each command with `33 <cmd> <status>`, status `0x00` = accepted.
+
+**Reply parsing** lives in the protocol classes: `parse_brightness(raw)` returns HA's 0-255 scale and `parse_color(frame)` returns `(rgb, kelvin)`, or `None` for a mode the model doesn't parse (state is then left unchanged). The base class implements the H6006 formats; H6008 overrides both.
 
 ## Device Information
 
