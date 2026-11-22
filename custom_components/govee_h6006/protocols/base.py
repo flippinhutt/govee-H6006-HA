@@ -82,6 +82,39 @@ class GoveeProtocol(ABC):
         """
         raise NotImplementedError("Color temperature not supported by this model")
 
+    @staticmethod
+    def parse_brightness(raw: int) -> int:
+        """Convert a brightness reply (aa 04) to Home Assistant's 0-255 scale.
+
+        Args:
+            raw: Byte 2 of the reply.
+
+        Returns:
+            Brightness level (0-255).
+        """
+        return raw
+
+    @classmethod
+    def parse_color(
+        cls, frame: bytes
+    ) -> tuple[tuple[int, int, int] | None, int | None] | None:
+        """Parse a color reply (aa 05) into (rgb, kelvin).
+
+        Exactly one of rgb and kelvin is set. White (R, G and B all 0xFF) is color
+        temperature mode, with the warm level in byte 7.
+
+        Args:
+            frame: The 20-byte reply.
+
+        Returns:
+            (rgb, kelvin), or None if the reply is in a mode this model doesn't parse.
+        """
+        if frame[3] == 0xFF and frame[4] == 0xFF and frame[5] == 0xFF:
+            warm = frame[7]
+            return None, round(cls.MAX_KELVIN - (warm / 255) * (cls.MAX_KELVIN - cls.MIN_KELVIN))
+        return (frame[3], frame[4], frame[5]), None
+
+
 def build_frame(cmd: int, payload: list[int]) -> bytes:
     """Build a 20-byte command packet for the Govee BLE protocol.
 
